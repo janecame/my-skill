@@ -1,0 +1,268 @@
+import { Goal, Skill, Project, Lesson } from './types';
+
+export const goals: Goal[] = [
+  {
+    id: 'g1',
+    name: 'Fullstack Developer',
+    description: 'Build end-to-end web applications with modern frontend and backend technologies',
+    icon: '🌐',
+  },
+  {
+    id: 'g2',
+    name: 'DevOps',
+    description: 'Automate, deploy, and manage infrastructure and CI/CD pipelines',
+    icon: '⚙️',
+  },
+  {
+    id: 'g3',
+    name: 'Claude Code (CLI)',
+    description: 'Master AI-assisted development using Claude and the Anthropic ecosystem',
+    icon: '🤖',
+  },
+];
+
+export const skills: Skill[] = [
+  {
+    id: '2',
+    name: 'React',
+    category: 'Frontend',
+    proficiency: 80,
+    started_date: '2022-06-01',
+    notes: 'Hooks, context, and now learning TanStack Query',
+    goal_ids: ['g1'],
+    sub_skills: [
+      { id: '2-1', name: 'Component Architecture', description: 'Composition, props, lifting state, slots pattern' },
+      { id: '2-2', name: 'Hooks (Core)', description: 'useState, useEffect, useRef, useMemo, useCallback' },
+      { id: '2-3', name: 'Context API', description: 'createContext, Provider, useContext for global state' },
+      { id: '2-4', name: 'TanStack Query', description: 'useQuery, useMutation, cache invalidation, optimistic updates' },
+      { id: '2-5', name: 'React Router', description: 'File-based routing, dynamic routes, loaders' },
+      { id: '2-6', name: 'Performance Optimization', description: 'React.memo, lazy/Suspense, profiler, code splitting' },
+    ],
+  },
+  {
+    id: '3',
+    name: 'Node.js / Express',
+    category: 'Backend',
+    proficiency: 65,
+    started_date: '2022-09-10',
+    notes: 'Express APIs, learning Prisma',
+    goal_ids: ['g1'],
+    sub_skills: [
+      { id: '3-1', name: 'REST API Design', description: 'Resource naming, HTTP verbs, status codes, versioning' },
+      { id: '3-2', name: 'Middleware', description: 'Auth middleware, error handlers, request validation' },
+      { id: '3-3', name: 'Prisma ORM', description: 'Schema definition, migrations, typed queries, relations' },
+      { id: '3-4', name: 'Authentication', description: 'JWT, sessions, OAuth2, refresh token flow' },
+      { id: '3-5', name: 'File Uploads & Storage', description: 'Multer, S3/Supabase Storage, signed URLs' },
+    ],
+  },
+  {
+    id: '4',
+    name: 'PostgreSQL',
+    category: 'Database',
+    proficiency: 55,
+    started_date: '2023-03-20',
+    notes: 'Using via Supabase',
+    goal_ids: ['g1'],
+    sub_skills: [
+      { id: '4-1', name: 'SQL Fundamentals', description: 'SELECT, JOIN, GROUP BY, subqueries, window functions' },
+      { id: '4-2', name: 'Schema Design', description: 'Normalization, foreign keys, indexes, constraints' },
+      { id: '4-3', name: 'Supabase', description: 'Auth, RLS policies, realtime subscriptions, edge functions' },
+      { id: '4-4', name: 'Query Optimization', description: 'EXPLAIN ANALYZE, index strategies, N+1 problem' },
+    ],
+  },
+  {
+    id: '5',
+    name: 'Docker',
+    category: 'DevOps',
+    proficiency: 45,
+    started_date: '2024-01-10',
+    notes: 'Containerizing apps for consistent environments',
+    goal_ids: ['g2'],
+    sub_skills: [
+      { id: '5-1', name: 'Dockerfile Authoring', description: 'Multi-stage builds, layer caching, .dockerignore' },
+      { id: '5-2', name: 'Docker Compose', description: 'Multi-container apps, volumes, networks, env files' },
+      { id: '5-3', name: 'Image Registry', description: 'Pushing/pulling from Docker Hub, GHCR, ECR' },
+      { id: '5-4', name: 'Container Networking', description: 'Bridge/host/overlay networks, port mapping' },
+    ],
+  },
+  {
+    id: '6',
+    name: 'CI/CD (GitHub Actions)',
+    category: 'DevOps',
+    proficiency: 40,
+    started_date: '2024-02-01',
+    notes: 'Automating builds and deployments',
+    goal_ids: ['g2'],
+    sub_skills: [
+      { id: '6-1', name: 'Workflow Basics', description: 'Triggers, jobs, steps, runners, matrix builds' },
+      { id: '6-2', name: 'Secrets & Environments', description: 'GitHub Secrets, environment protection rules' },
+      { id: '6-3', name: 'Deploy Pipelines', description: 'Deploy to Vercel, Railway, ECS, or VPS on push' },
+      { id: '6-4', name: 'Test Automation', description: 'Running unit + e2e tests, coverage reports, PR checks' },
+      { id: '6-5', name: 'Caching & Artifacts', description: 'actions/cache, upload-artifact, optimize build times' },
+    ],
+  },
+  {
+    id: '7',
+    name: 'Linux & Shell',
+    category: 'DevOps',
+    proficiency: 50,
+    started_date: '2024-01-01',
+    notes: 'Server management, scripting, and automation',
+    goal_ids: ['g2'],
+    sub_skills: [
+      { id: '7-1', name: 'Shell Scripting (Bash)', description: 'Variables, loops, conditionals, functions, cron jobs' },
+      { id: '7-2', name: 'File System & Permissions', description: 'chmod, chown, ln, file descriptors, /proc' },
+      { id: '7-3', name: 'Process Management', description: 'ps, kill, systemctl, journalctl, background jobs' },
+      { id: '7-4', name: 'Networking Tools', description: 'curl, netstat, ss, dig, iptables, UFW' },
+    ],
+  },
+  {
+    id: '9',
+    name: 'Claude Code (CLI)',
+    category: 'AI / LLM',
+    proficiency: 70,
+    started_date: '2024-05-01',
+    notes: 'Agentic coding workflows with the Anthropic ecosystem',
+    goal_ids: ['g3'],
+    sub_skills: [
+      {
+        id: '9-1',
+        name: 'Multiagent Workflows',
+        description: 'Orchestrating multiple agents, sub-agent spawning, parallel execution patterns',
+        sub_skills: [
+          { id: '9-1-1', name: 'Agent Orchestration', description: 'Coordinating multiple specialized agents toward a shared goal' },
+          { id: '9-1-2', name: 'Sub-agent Spawning', description: 'Using the Agent tool to delegate tasks to child agents' },
+          { id: '9-1-3', name: 'Parallel Execution', description: 'Running independent agents concurrently to reduce latency' },
+          { id: '9-1-4', name: 'Inter-agent Communication', description: 'Passing context and results between agents in a pipeline' },
+        ],
+      },
+      {
+        id: '9-2',
+        name: 'Evals',
+        description: 'Designing evaluation suites, scoring outputs, regression testing for LLM behavior',
+        sub_skills: [
+          { id: '9-2-1', name: 'Eval Dataset Design', description: 'Building representative test cases and golden outputs' },
+          { id: '9-2-2', name: 'LLM-as-Judge', description: 'Using a model to score another model\'s responses' },
+          { id: '9-2-3', name: 'Regression Testing', description: 'Detecting behavior drift across prompt or model changes' },
+          { id: '9-2-4', name: 'Scoring Metrics', description: 'BLEU, ROUGE, exact match, custom rubrics for quality measurement' },
+        ],
+      },
+      {
+        id: '9-3',
+        name: 'Multimodal Apps',
+        description: 'Handling images, documents, and mixed-media inputs in Claude-powered apps',
+        sub_skills: [
+          { id: '9-3-1', name: 'Image Inputs', description: 'Sending base64 or URL images in the Messages API' },
+          { id: '9-3-2', name: 'Document Processing', description: 'Extracting and reasoning over PDF and text documents' },
+          { id: '9-3-3', name: 'Vision Pipelines', description: 'Building end-to-end flows that combine vision and text reasoning' },
+          { id: '9-3-4', name: 'Mixed-media UX', description: 'Designing interfaces that accept and display multiple media types' },
+        ],
+      },
+      {
+        id: '9-4',
+        name: 'Context Engineering',
+        description: 'Structuring context windows, CLAUDE.md authoring, memory and retrieval design',
+        sub_skills: [
+          { id: '9-4-1', name: 'CLAUDE.md Authoring', description: 'Writing project instructions that guide Claude\'s behavior reliably' },
+          { id: '9-4-2', name: 'Memory Systems', description: 'Designing persistent memory with files and memory index patterns' },
+          { id: '9-4-3', name: 'Context Window Management', description: 'Fitting relevant info into limited context, pruning stale data' },
+          { id: '9-4-4', name: 'System Prompt Design', description: 'Role setting, constraints, output format, and behavioral guidance' },
+        ],
+      },
+      {
+        id: '9-5',
+        name: 'Token Optimization',
+        description: 'Prompt caching, compact mode, /clear, context pruning, cost reduction strategies',
+        sub_skills: [
+          { id: '9-5-1', name: 'Prompt Caching', description: 'Cache breakpoints, cache_read_input_tokens, TTL and cost savings' },
+          { id: '9-5-2', name: 'Compact Mode & /clear', description: 'Using context compression and clearing to reduce token spend' },
+          { id: '9-5-3', name: 'Token Counting', description: 'Counting tokens before sending to stay within budget' },
+          { id: '9-5-4', name: 'Context Pruning', description: 'Removing redundant history and compressing long conversations' },
+        ],
+      },
+      {
+        id: '9-6',
+        name: 'RAG',
+        description: 'Retrieval-augmented generation: chunking, embeddings, vector search, grounding responses',
+        sub_skills: [
+          { id: '9-6-1', name: 'Chunking Strategies', description: 'Fixed-size, semantic, and recursive chunking for documents' },
+          { id: '9-6-2', name: 'Embeddings', description: 'Generating and storing vector representations of text' },
+          { id: '9-6-3', name: 'Vector Search', description: 'Querying similarity search with pgvector, Pinecone, or similar' },
+          { id: '9-6-4', name: 'Grounding Responses', description: 'Injecting retrieved context to reduce hallucinations' },
+        ],
+      },
+      {
+        id: '9-7',
+        name: 'Harness Engineering',
+        description: 'Settings.json, hooks (PreToolUse/PostToolUse), permissions, slash commands',
+        sub_skills: [
+          { id: '9-7-1', name: 'Settings.json Config', description: 'Configuring Claude Code behavior, env vars, and tool permissions' },
+          { id: '9-7-2', name: 'Hooks', description: 'PreToolUse/PostToolUse/Stop hooks for automated side effects' },
+          { id: '9-7-3', name: 'Slash Commands / Skills', description: 'Creating custom skills and chaining them into workflows' },
+          { id: '9-7-4', name: 'MCP Servers', description: 'Connecting MCP servers to extend Claude with custom tools' },
+        ],
+      },
+      {
+        id: '9-8',
+        name: 'Fine-tuning',
+        description: 'Dataset preparation, training runs, evaluating fine-tuned model behavior',
+        sub_skills: [
+          { id: '9-8-1', name: 'Dataset Preparation', description: 'Formatting prompt-completion pairs for supervised fine-tuning' },
+          { id: '9-8-2', name: 'Training Runs', description: 'Configuring hyperparameters, epochs, and batch size' },
+          { id: '9-8-3', name: 'Behavioral Evaluation', description: 'Comparing base vs fine-tuned outputs on held-out test sets' },
+          { id: '9-8-4', name: 'RLHF Concepts', description: 'Reward modeling, preference data, and alignment techniques' },
+        ],
+      },
+      {
+        id: '9-9',
+        name: 'Agent Observability',
+        description: 'Tracing agent steps, logging tool calls, debugging multi-turn failures',
+        sub_skills: [
+          { id: '9-9-1', name: 'Step Tracing', description: 'Recording each agent action and decision for post-hoc analysis' },
+          { id: '9-9-2', name: 'Tool Call Logging', description: 'Capturing inputs and outputs of every tool invocation' },
+          { id: '9-9-3', name: 'Failure Debugging', description: 'Identifying where multi-turn or multi-agent pipelines break down' },
+          { id: '9-9-4', name: 'Cost & Latency Monitoring', description: 'Tracking token usage and response times across agent runs' },
+        ],
+      },
+    ],
+  },
+];
+
+
+export const projects: Project[] = [
+  {
+    id: '1',
+    name: 'Skill Progress Tracker',
+    description: 'A full-stack app to visualize personal learning journeys.',
+    status: 20,
+    tech_stack: ['React', 'TypeScript', 'Node.js', 'PostgreSQL'],
+    skills_used: ['2', '3', '4'],
+    start_date: '2024-05-01',
+    end_date: null,
+    url: null,
+  },
+  {
+    id: '2',
+    name: 'Portfolio Website',
+    description: 'Personal portfolio showcasing projects and skills.',
+    status: 100,
+    tech_stack: ['React', 'TypeScript'],
+    skills_used: ['2'],
+    start_date: '2023-07-01',
+    end_date: '2023-09-30',
+    url: 'https://example.com',
+  },
+];
+
+export const lessons: Lesson[] = [
+  {
+    id: '1',
+    title: 'TanStack Query reduces a lot of boilerplate',
+    content: 'Replaced manual fetch + useState + useEffect patterns with useQuery. Much cleaner.',
+    skills_tagged: ['2'],
+    projects_tagged: ['1'],
+    date_learned: '2024-05-15',
+    importance: 4,
+    done: false,
+  },
+];

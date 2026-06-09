@@ -1,0 +1,9 @@
+{
+  "name": "skill-tracker",
+  "version": "1.0.0",
+  "scripts": {
+    "dev:be": "npm --prefix be run dev",
+    "dev:fe": "npm --prefix fe run dev",
+    "install:all": "npm --prefix be install && npm --prefix fe install"
+  }
+}
