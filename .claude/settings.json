@@ -4,7 +4,9 @@
       "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\WINSERVER\\\\Documents\\\\Rodrigo Training Code\\\\my-skill\\\\fe\\\\src\" -Recurse | Select-Object -Property FullName | ForEach-Object { $_.FullName } | Sort-Object)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\WINSERVER\\\\Documents\\\\Rodrigo Training Code\\\\my-skill\" -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
-      "Bash(Sort-Object)"
+      "Bash(Sort-Object)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\WINSERVER\\\\Documents\\\\Rodrigo Training Code\\\\my-skill\\\\be\\\\src\\\\routes\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object Name)"
     ]
   }
 }

@@ -1,3 +1,8 @@
+export interface TechStackOption {
+  id: string;
+  name: string;
+}
+
 export interface Goal {
   id: string;
   name: string;
@@ -40,7 +45,11 @@ export interface Project {
   start_date: string;
   end_date: string | null;
   url: string | null;
+  github_url: string | null;
+  remaining_tasks: string[];
 }
+
+export type LessonItemType = 'task' | 'learn' | 'skill';
 
 export interface Lesson {
   id: string;
@@ -50,5 +59,16 @@ export interface Lesson {
   projects_tagged: string[];
   date_learned: string;
   importance: number;
+  done: boolean;
+  item_type: LessonItemType;
+}
+
+export interface LearnReminder {
+  id: string;
+  subSkillName: string;
+  skillName: string;
+  goalName: string;
+  startDate: string;
+  addedAt: string;
   done: boolean;
 }

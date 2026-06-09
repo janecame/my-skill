@@ -11,6 +11,7 @@ function shapeLesson(l: any) {
     date_learned: l.date_learned,
     importance: l.importance,
     done: l.done,
+    item_type: l.item_type ?? 'task',
     skills_tagged: (l.lesson_skills ?? []).map((ls: any) => ls.skill_id),
     projects_tagged: (l.lesson_projects ?? []).map((lp: any) => lp.project_id),
   };
@@ -37,7 +38,7 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { title, content, skills_tagged, projects_tagged, importance, date_learned } = req.body;
+  const { title, content, skills_tagged, projects_tagged, importance, date_learned, item_type } = req.body;
   if (!title) return res.status(400).json({ message: 'Title is required' });
 
   const { data: lesson, error } = await supabase
@@ -48,6 +49,7 @@ router.post('/', async (req, res) => {
       date_learned: date_learned ?? new Date().toISOString().split('T')[0],
       importance: importance ?? 3,
       done: false,
+      item_type: item_type ?? 'task',
     })
     .select()
     .single();
@@ -71,6 +73,12 @@ router.post('/', async (req, res) => {
     skills_tagged: skills_tagged ?? [],
     projects_tagged: projects_tagged ?? [],
   });
+});
+
+router.delete('/:id', async (req, res) => {
+  const { error } = await supabase.from('lessons').delete().eq('id', req.params.id);
+  if (error) return res.status(500).json({ message: error.message });
+  res.status(204).send();
 });
 
 router.patch('/:id/done', async (req, res) => {
