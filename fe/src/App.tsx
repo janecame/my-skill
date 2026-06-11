@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Box, Stack, Typography, ButtonBase, IconButton, ThemeProvider, CssBaseline, createTheme } from '@mui/material';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
@@ -9,11 +10,11 @@ import LessonsPage from './pages/LessonsPage';
 import SettingsPage from './pages/SettingsPage';
 
 const TABS = [
-  { label: 'Overview' },
-  { label: 'Skills' },
-  { label: 'Projects' },
-  { label: 'Task' },
-  { label: 'Settings' },
+  { label: 'Overview', path: '/' },
+  { label: 'Skills', path: '/skills' },
+  { label: 'Projects', path: '/projects' },
+  { label: 'Task', path: '/lessons' },
+  { label: 'Settings', path: '/settings' },
 ];
 
 const GOOGLE_COLORS = ['#4285f4', '#ea4335', '#fbbc04', '#34a853'];
@@ -200,8 +201,8 @@ function buildTheme(mode: 'light' | 'dark') {
 }
 
 export default function App() {
-  const [tab, setTab] = useState(0);
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
+  const location = useLocation();
 
   const theme = useMemo(() => buildTheme(darkMode ? 'dark' : 'light'), [darkMode]);
 
@@ -211,8 +212,8 @@ export default function App() {
   const tabActive = '#1a73e8';
   const tabInactive = darkMode ? '#9aa0a6' : '#5f6368';
   const tabHover = darkMode ? '#e8eaed' : '#202124';
-  const footerBg = darkMode ? '#1e1e1e' : '#ffffff';
   const footerBorder = darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+  const footerBg = darkMode ? '#1e1e1e' : '#ffffff';
 
   return (
     <ThemeProvider theme={theme}>
@@ -276,47 +277,57 @@ export default function App() {
 
           {/* Navigation tabs */}
           <Stack direction="row" sx={{ px: 2 }}>
-            {TABS.map((t, i) => (
-              <ButtonBase
-                key={t.label}
-                onClick={() => setTab(i)}
-                sx={{
-                  px: 2,
-                  py: 1.25,
-                  display: 'flex',
-                  alignItems: 'center',
-                  position: 'relative',
-                  borderBottom: tab === i ? '3px solid #1a73e8' : '3px solid transparent',
-                  color: tab === i ? tabActive : tabInactive,
-                  transition: 'all 0.15s ease',
-                  borderRadius: '2px 2px 0 0',
-                  '&:hover': {
-                    color: tab === i ? tabActive : tabHover,
-                    bgcolor: 'rgba(26,115,232,0.04)',
-                  },
-                }}
-              >
-                <Typography
+            {TABS.map((t) => {
+              const isActive = t.path === '/'
+                ? location.pathname === '/'
+                : location.pathname.startsWith(t.path);
+              return (
+                <ButtonBase
+                  key={t.label}
+                  component={NavLink}
+                  to={t.path}
                   sx={{
-                    fontSize: '0.875rem',
-                    fontWeight: tab === i ? 500 : 400,
-                    fontFamily: '"Google Sans", "Roboto", sans-serif',
+                    px: 2,
+                    py: 1.25,
+                    display: 'flex',
+                    alignItems: 'center',
+                    position: 'relative',
+                    borderBottom: isActive ? '3px solid #1a73e8' : '3px solid transparent',
+                    color: isActive ? tabActive : tabInactive,
+                    transition: 'all 0.15s ease',
+                    borderRadius: '2px 2px 0 0',
+                    textDecoration: 'none',
+                    '&:hover': {
+                      color: isActive ? tabActive : tabHover,
+                      bgcolor: 'rgba(26,115,232,0.04)',
+                    },
                   }}
                 >
-                  {t.label}
-                </Typography>
-              </ButtonBase>
-            ))}
+                  <Typography
+                    sx={{
+                      fontSize: '0.875rem',
+                      fontWeight: isActive ? 500 : 400,
+                      fontFamily: '"Google Sans", "Roboto", sans-serif',
+                    }}
+                  >
+                    {t.label}
+                  </Typography>
+                </ButtonBase>
+              );
+            })}
           </Stack>
         </Box>
 
         {/* Content */}
         <Box sx={{ flex: 1, px: { xs: 2, md: 4 }, py: 3, maxWidth: 1100, mx: 'auto', width: '100%' }}>
-          {tab === 0 && <OverviewPage />}
-          {tab === 1 && <SkillsPage />}
-          {tab === 2 && <ProjectsPage />}
-          {tab === 3 && <LessonsPage />}
-          {tab === 4 && <SettingsPage />}
+          <Routes>
+            <Route path="/" element={<OverviewPage />} />
+            <Route path="/skills" element={<SkillsPage />} />
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/lessons" element={<LessonsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </Box>
 
         {/* Footer */}

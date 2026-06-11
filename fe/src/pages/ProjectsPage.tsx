@@ -9,8 +9,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  IconButton,
-  InputAdornment,
   Slider,
   Stack,
   TextField,
@@ -28,8 +26,11 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { fetchProjects, createProject, updateProject, fetchTechStackOptions } from '../api';
-import { Project } from '../types';
+import { fetchProjects, createProject, updateProject, fetchTechStackOptions, fetchLessons } from '../api';
+import { Project, Lesson } from '../types';
+
+const TASK_IMPORTANCE_COLOR = ['', '#9aa0a6', '#80868b', '#0288d1', '#f9ab00', '#d93025'];
+const TASK_IMPORTANCE_LABEL = ['', 'Trivial', 'Minor', 'Notable', 'Important', 'Critical'];
 import { syncProjectTaskReminders } from '../utils/reminders';
 
 function statusLabel(status: number) {
@@ -40,7 +41,7 @@ function statusLabel(status: number) {
   return { label: 'Planning', color: '#80868b' };
 }
 
-function ProjectCard({ project, onEdit }: { project: Project; onEdit: (p: Project) => void }) {
+function ProjectCard({ project, onEdit, linkedTasks }: { project: Project; onEdit: (p: Project) => void; linkedTasks: Lesson[] }) {
   const theme = useTheme();
   const status = statusLabel(project.status);
 
@@ -104,18 +105,24 @@ function ProjectCard({ project, onEdit }: { project: Project; onEdit: (p: Projec
           </Stack>
         </Box>
 
-        {project.remaining_tasks.length > 0 && project.status < 100 && (
+        {linkedTasks.filter(t => !t.done).length > 0 && project.status < 100 && (
           <Box sx={{ mb: 1.5, p: 1.25, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.025)', borderRadius: 1, border: `1px solid ${theme.palette.divider}` }}>
             <Typography sx={{ fontSize: '0.65rem', fontWeight: 500, color: 'text.secondary', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Still needed
+              Tasks
             </Typography>
             <Stack spacing={0.5}>
-              {project.remaining_tasks.map((task, i) => (
-                <Stack key={i} direction="row" alignItems="flex-start" spacing={0.75}>
-                  <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: status.color, mt: '5px', flexShrink: 0 }} />
-                  <Typography sx={{ fontSize: '0.72rem', color: 'text.primary', lineHeight: 1.5 }}>{task}</Typography>
-                </Stack>
-              ))}
+              {[...linkedTasks]
+                .filter(t => !t.done)
+                .sort((a, b) => b.importance - a.importance)
+                .map((task, i) => (
+                  <Stack key={i} direction="row" alignItems="flex-start" spacing={0.75}>
+                    <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: TASK_IMPORTANCE_COLOR[task.importance], mt: '5px', flexShrink: 0 }} />
+                    <Typography sx={{ fontSize: '0.72rem', color: 'text.primary', lineHeight: 1.5, flex: 1 }}>{task.title}</Typography>
+                    <Box sx={{ px: 0.75, py: 0.1, border: `1px solid ${TASK_IMPORTANCE_COLOR[task.importance]}44`, bgcolor: TASK_IMPORTANCE_COLOR[task.importance] + '12', borderRadius: 0.75, flexShrink: 0 }}>
+                      <Typography sx={{ fontSize: '0.55rem', fontWeight: 500, color: TASK_IMPORTANCE_COLOR[task.importance] }}>{TASK_IMPORTANCE_LABEL[task.importance]}</Typography>
+                    </Box>
+                  </Stack>
+                ))}
             </Stack>
           </Box>
         )}
@@ -171,56 +178,6 @@ function TechStackPicker({ value, onChange }: { value: string[]; onChange: (v: s
   );
 }
 
-function RemainingTasksEditor({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
-  const [input, setInput] = useState('');
-
-  function addTask() {
-    const trimmed = input.trim();
-    if (!trimmed) return;
-    onChange([...value, trimmed]);
-    setInput('');
-  }
-
-  function removeTask(i: number) {
-    onChange(value.filter((_, idx) => idx !== i));
-  }
-
-  return (
-    <Box>
-      <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 1 }}>What still needs to be done</Typography>
-      <Stack spacing={0.75} mb={1}>
-        {value.map((task, i) => (
-          <Stack key={i} direction="row" alignItems="center" spacing={0.5}>
-            <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0 }} />
-            <Typography sx={{ fontSize: '0.78rem', color: 'text.primary', flex: 1 }}>{task}</Typography>
-            <IconButton size="small" onClick={() => removeTask(i)} sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
-              <span style={{ fontSize: '0.75rem', lineHeight: 1 }}>✕</span>
-            </IconButton>
-          </Stack>
-        ))}
-      </Stack>
-      <TextField
-        size="small"
-        fullWidth
-        placeholder="e.g. Deploy to Docker"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTask(); } }}
-        InputProps={{
-          endAdornment: (
-            <InputAdornment position="end">
-              <Button size="small" onClick={addTask} disabled={!input.trim()}
-                sx={{ minWidth: 0, px: 1, py: 0.25, fontSize: '0.7rem', textTransform: 'none' }}>
-                Add
-              </Button>
-            </InputAdornment>
-          ),
-        }}
-        sx={{ '& .MuiInputBase-input': { fontSize: '0.78rem' } }}
-      />
-    </Box>
-  );
-}
 
 function AddProjectDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
@@ -260,7 +217,6 @@ function AddProjectDialog({ open, onClose }: { open: boolean; onClose: () => voi
             </Stack>
             <Slider value={form.status} onChange={(_, v) => setForm((f) => ({ ...f, status: v as number }))} min={0} max={100} step={5} marks={[{ value: 0, label: '0' }, { value: 50, label: '50' }, { value: 100, label: '100' }]} sx={{ color: '#1a73e8', '& .MuiSlider-markLabel': { fontSize: '0.65rem', color: 'text.disabled' } }} />
           </Box>
-          <RemainingTasksEditor value={form.remaining_tasks} onChange={(v) => setForm((f) => ({ ...f, remaining_tasks: v }))} />
           <Box>
             <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 1 }}>Tech Stack</Typography>
             <TechStackPicker value={form.tech_stack} onChange={(v) => setForm((f) => ({ ...f, tech_stack: v }))} />
@@ -325,7 +281,6 @@ function EditProjectDialog({ project, onClose }: { project: Project | null; onCl
             </Stack>
             <Slider value={form.status} onChange={(_, v) => setForm((f) => ({ ...f, status: v as number }))} min={0} max={100} step={5} marks={[{ value: 0, label: '0' }, { value: 50, label: '50' }, { value: 100, label: '100' }]} sx={{ color: '#1a73e8', '& .MuiSlider-markLabel': { fontSize: '0.65rem', color: 'text.disabled' } }} />
           </Box>
-          <RemainingTasksEditor value={form.remaining_tasks} onChange={(v) => setForm((f) => ({ ...f, remaining_tasks: v }))} />
           <Box>
             <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 1 }}>Tech Stack</Typography>
             <TechStackPicker value={form.tech_stack} onChange={(v) => setForm((f) => ({ ...f, tech_stack: v }))} />
@@ -349,6 +304,7 @@ function EditProjectDialog({ project, onClose }: { project: Project | null; onCl
 export default function ProjectsPage() {
   const theme = useTheme();
   const { data: projects, isLoading, isError } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
+  const { data: lessons } = useQuery({ queryKey: ['lessons'], queryFn: fetchLessons });
   const [addOpen, setAddOpen] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
 
@@ -435,7 +391,12 @@ export default function ProjectsPage() {
 
       <Stack spacing={1.5}>
         {projects?.map((project) => (
-          <ProjectCard key={project.id} project={project} onEdit={setEditProject} />
+          <ProjectCard
+            key={project.id}
+            project={project}
+            onEdit={setEditProject}
+            linkedTasks={(lessons ?? []).filter(l => l.item_type === 'task' && l.projects_tagged.includes(project.id))}
+          />
         ))}
         {projects?.length === 0 && (
           <Box sx={{ py: 6, textAlign: 'center', border: `1px dashed ${theme.palette.divider}`, borderRadius: 2 }}>

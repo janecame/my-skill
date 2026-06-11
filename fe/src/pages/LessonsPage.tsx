@@ -17,15 +17,33 @@ import {
   Typography,
   useTheme,
 } from '@mui/material';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import { fetchLessons, createLesson, toggleLessonDone, deleteLesson } from '../api';
-import { Lesson, LearnReminder, LessonItemType } from '../types';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { fetchLessons, createLesson, toggleLessonDone, deleteLesson, fetchProjects } from '../api';
+import { Lesson, LearnReminder, LessonItemType, Project } from '../types';
 
-const IMPORTANCE_COLOR = ['', '#9aa0a6', '#80868b', '#0288d1', '#f9ab00', '#1a73e8'];
+const IMPORTANCE_COLOR = ['', '#9aa0a6', '#80868b', '#0288d1', '#f9ab00', '#d93025'];
 const IMPORTANCE_LABEL = ['', 'Trivial', 'Minor', 'Notable', 'Important', 'Critical'];
 const LEARN_REMINDERS_KEY = 'skill-tracker:learn-reminders';
+const LESSONS_ORDER_KEY = 'skill-tracker:lessons-order';
+const REMINDERS_ORDER_KEY = 'skill-tracker:reminders-order';
 
 type AllItemType = LessonItemType | 'reminder';
 
@@ -46,6 +64,26 @@ function loadReminders(): LearnReminder[] {
 
 function saveReminders(reminders: LearnReminder[]) {
   localStorage.setItem(LEARN_REMINDERS_KEY, JSON.stringify(reminders));
+}
+
+function loadOrder(key: string): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(key) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function saveOrder(key: string, ids: string[]) {
+  localStorage.setItem(key, JSON.stringify(ids));
+}
+
+function applyOrder<T extends { id: string }>(items: T[], order: string[]): T[] {
+  if (order.length === 0) return items;
+  const map = new Map(items.map((item) => [item.id, item]));
+  const ordered = order.flatMap((id) => (map.has(id) ? [map.get(id)!] : []));
+  const newItems = items.filter((item) => !order.includes(item.id));
+  return [...ordered, ...newItems];
 }
 
 function TypeBadge({ type }: { type: AllItemType }) {
@@ -71,79 +109,76 @@ function ImportanceDots({ value }: { value: number }) {
 
 function LessonCard({ lesson, index, onToggleDone, onDelete }: { lesson: Lesson; index: number; onToggleDone: (id: string) => void; onDelete: (id: string) => void }) {
   const theme = useTheme();
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lesson.id });
   const importanceColor = lesson.done ? theme.palette.text.disabled : (IMPORTANCE_COLOR[lesson.importance] || theme.palette.text.disabled);
   const importanceLabel = IMPORTANCE_LABEL[lesson.importance] || 'Unknown';
 
   return (
-    <Box sx={{
-      display: 'flex',
-      gap: 0,
-      bgcolor: 'background.paper',
-      border: `1px solid ${theme.palette.divider}`,
-      borderRadius: 1,
-      boxShadow: theme.palette.mode === 'dark' ? '0 1px 2px rgba(0,0,0,0.5)' : '0 1px 2px rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
-      overflow: 'hidden',
-      transition: 'box-shadow 0.2s',
-      opacity: lesson.done ? 0.6 : 1,
-      '&:hover': { boxShadow: theme.palette.mode === 'dark' ? '0 1px 3px rgba(0,0,0,0.5), 0 4px 8px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15)' },
-    }}>
+    <Box
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      sx={{
+        display: 'flex',
+        gap: 0,
+        bgcolor: 'background.paper',
+        border: `1px solid ${theme.palette.divider}`,
+        borderRadius: 1,
+        boxShadow: isDragging
+          ? (theme.palette.mode === 'dark' ? '0 8px 24px rgba(0,0,0,0.6)' : '0 8px 24px rgba(60,64,67,0.3)')
+          : (theme.palette.mode === 'dark' ? '0 1px 2px rgba(0,0,0,0.5)' : '0 1px 2px rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)'),
+        overflow: 'hidden',
+        opacity: isDragging ? 0.85 : lesson.done ? 0.6 : 1,
+        zIndex: isDragging ? 999 : 'auto',
+        transition: 'box-shadow 0.2s, opacity 0.2s',
+        '&:hover': { boxShadow: theme.palette.mode === 'dark' ? '0 1px 3px rgba(0,0,0,0.5), 0 4px 8px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15)' },
+      }}
+    >
       <Box sx={{ width: 3, flexShrink: 0, bgcolor: importanceColor }} />
-      <Box sx={{ flex: 1, px: 2, py: 2 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={1}>
-          <Stack direction="row" alignItems="center" spacing={1.5} flex={1} mr={2}>
+      <Box
+        {...attributes}
+        {...listeners}
+        sx={{ display: 'flex', alignItems: 'center', px: 0.75, cursor: isDragging ? 'grabbing' : 'grab', color: 'text.disabled', flexShrink: 0, '&:hover': { color: 'text.secondary' } }}
+      >
+        <DragIndicatorIcon sx={{ fontSize: 16 }} />
+      </Box>
+      <Box sx={{ flex: 1, px: 1.5, py: 0.75 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Stack direction="row" alignItems="center" spacing={1} flex={1} mr={1}>
             <Checkbox
               checked={lesson.done}
               onChange={() => onToggleDone(lesson.id)}
               size="small"
               sx={{ p: 0, color: 'text.disabled', '&.Mui-checked': { color: 'success.main' } }}
             />
-            <Typography sx={{ fontSize: '0.7rem', fontWeight: 500, color: 'text.disabled', fontFamily: '"Google Sans", "Roboto", sans-serif', flexShrink: 0 }}>
+            <Typography sx={{ fontSize: '0.65rem', fontWeight: 500, color: 'text.disabled', fontFamily: '"Google Sans", "Roboto", sans-serif', flexShrink: 0 }}>
               #{String(index + 1).padStart(3, '0')}
             </Typography>
             <TypeBadge type={lesson.item_type ?? 'task'} />
-            <Box flex={1}>
-              <Typography sx={{ fontSize: '0.9rem', fontWeight: 500, color: lesson.done ? 'text.disabled' : 'text.primary', fontFamily: '"Google Sans", "Roboto", sans-serif', lineHeight: 1.3, textDecoration: lesson.done ? 'line-through' : 'none' }}>
+            <Box flex={1} sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontSize: '0.82rem', fontWeight: 500, color: lesson.done ? 'text.disabled' : 'text.primary', fontFamily: '"Google Sans", "Roboto", sans-serif', lineHeight: 1.3, textDecoration: lesson.done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {lesson.title}
               </Typography>
+              {lesson.content && (
+                <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {lesson.content}
+                </Typography>
+              )}
             </Box>
           </Stack>
-          <Stack alignItems="flex-end" spacing={0.5} flexShrink={0}>
-            <Stack direction="row" alignItems="center" spacing={0.5}>
-              <ImportanceDots value={lesson.importance} />
-              <IconButton size="small" onClick={() => onDelete(lesson.id)} sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
-                <DeleteOutlineIcon sx={{ fontSize: 15 }} />
-              </IconButton>
-            </Stack>
-            <Box sx={{ px: 1, py: 0.2, border: `1px solid ${importanceColor}44`, bgcolor: importanceColor + '12', borderRadius: 1 }}>
-              <Typography sx={{ fontSize: '0.6rem', fontWeight: 500, color: importanceColor, fontFamily: '"Google Sans", "Roboto", sans-serif' }}>
+          <Stack direction="row" alignItems="center" spacing={1} flexShrink={0}>
+            <ImportanceDots value={lesson.importance} />
+            <Box sx={{ px: 0.75, py: 0.1, border: `1px solid ${importanceColor}44`, bgcolor: importanceColor + '12', borderRadius: 0.75 }}>
+              <Typography sx={{ fontSize: '0.58rem', fontWeight: 500, color: importanceColor, fontFamily: '"Google Sans", "Roboto", sans-serif' }}>
                 {importanceLabel}
               </Typography>
             </Box>
+            <IconButton size="small" onClick={() => onDelete(lesson.id)} sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
+              <DeleteOutlineIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+            <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', fontFamily: '"Google Sans", "Roboto", sans-serif', minWidth: 60, textAlign: 'right' }}>
+              {new Date(lesson.date_learned).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </Typography>
           </Stack>
-        </Stack>
-
-        {lesson.content && (
-          <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary', lineHeight: 1.6, mb: 1.5, borderLeft: `2px solid ${theme.palette.divider}`, pl: 1.5 }}>
-            {lesson.content}
-          </Typography>
-        )}
-
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            {lesson.skills_tagged?.map((tag) => (
-              <Box key={tag} sx={{ px: 1, py: 0.2, border: '1px solid rgba(26,115,232,0.25)', bgcolor: 'rgba(26,115,232,0.06)', borderRadius: 1 }}>
-                <Typography sx={{ fontSize: '0.6rem', color: 'primary.main', fontFamily: '"Google Sans", "Roboto", sans-serif' }}>{tag}</Typography>
-              </Box>
-            ))}
-            {lesson.projects_tagged?.map((tag) => (
-              <Box key={tag} sx={{ px: 1, py: 0.2, border: '1px solid rgba(2,136,209,0.25)', bgcolor: 'rgba(2,136,209,0.06)', borderRadius: 1 }}>
-                <Typography sx={{ fontSize: '0.6rem', color: 'info.main', fontFamily: '"Google Sans", "Roboto", sans-serif' }}>{tag}</Typography>
-              </Box>
-            ))}
-          </Stack>
-          <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled', fontFamily: '"Google Sans", "Roboto", sans-serif', flexShrink: 0, ml: 1 }}>
-            {new Date(lesson.date_learned).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-          </Typography>
         </Stack>
       </Box>
     </Box>
@@ -152,25 +187,40 @@ function LessonCard({ lesson, index, onToggleDone, onDelete }: { lesson: Lesson;
 
 function ReminderCard({ reminder, index, onToggle, onDelete }: { reminder: LearnReminder; index: number; onToggle: (id: string) => void; onDelete: (id: string) => void }) {
   const theme = useTheme();
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: reminder.id });
   const isOverdue = reminder.startDate && !reminder.done && new Date(reminder.startDate) < new Date();
   const accentColor = reminder.done ? theme.palette.text.disabled : isOverdue ? theme.palette.error.main : '#1e8e3e';
 
   return (
-    <Box sx={{
-      display: 'flex',
-      bgcolor: 'background.paper',
-      border: `1px solid ${theme.palette.divider}`,
-      borderRadius: 1,
-      boxShadow: theme.palette.mode === 'dark' ? '0 1px 2px rgba(0,0,0,0.5)' : '0 1px 2px rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
-      overflow: 'hidden',
-      opacity: reminder.done ? 0.6 : 1,
-      transition: 'box-shadow 0.2s',
-      '&:hover': { boxShadow: theme.palette.mode === 'dark' ? '0 1px 3px rgba(0,0,0,0.5), 0 4px 8px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15)' },
-    }}>
+    <Box
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      sx={{
+        display: 'flex',
+        bgcolor: 'background.paper',
+        border: `1px solid ${theme.palette.divider}`,
+        borderRadius: 1,
+        boxShadow: isDragging
+          ? (theme.palette.mode === 'dark' ? '0 8px 24px rgba(0,0,0,0.6)' : '0 8px 24px rgba(60,64,67,0.3)')
+          : (theme.palette.mode === 'dark' ? '0 1px 2px rgba(0,0,0,0.5)' : '0 1px 2px rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)'),
+        overflow: 'hidden',
+        opacity: isDragging ? 0.85 : reminder.done ? 0.6 : 1,
+        zIndex: isDragging ? 999 : 'auto',
+        transition: 'box-shadow 0.2s, opacity 0.2s',
+        '&:hover': { boxShadow: theme.palette.mode === 'dark' ? '0 1px 3px rgba(0,0,0,0.5), 0 4px 8px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15)' },
+      }}
+    >
       <Box sx={{ width: 3, flexShrink: 0, bgcolor: accentColor }} />
-      <Box sx={{ flex: 1, px: 2, py: 1.75 }}>
+      <Box
+        {...attributes}
+        {...listeners}
+        sx={{ display: 'flex', alignItems: 'center', px: 0.75, cursor: isDragging ? 'grabbing' : 'grab', color: 'text.disabled', flexShrink: 0, '&:hover': { color: 'text.secondary' } }}
+      >
+        <DragIndicatorIcon sx={{ fontSize: 16 }} />
+      </Box>
+      <Box sx={{ flex: 1, px: 1.5, py: 0.75 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Stack direction="row" alignItems="center" spacing={1.5} flex={1} mr={2}>
+          <Stack direction="row" alignItems="center" spacing={1} flex={1} mr={1}>
             <IconButton size="small" onClick={() => onToggle(reminder.id)} sx={{ p: 0.25, color: reminder.done ? 'success.main' : 'text.disabled', '&:hover': { color: 'success.main' } }}>
               {reminder.done ? <CheckCircleIcon sx={{ fontSize: 18 }} /> : <RadioButtonUncheckedIcon sx={{ fontSize: 18 }} />}
             </IconButton>
@@ -216,7 +266,10 @@ function AddItemDialog({ open, onClose, onReminderAdded }: { open: boolean; onCl
   const [activeType, setActiveType] = useState<AllItemType>('task');
   const [lessonForm, setLessonForm] = useState(EMPTY_LESSON_FORM);
   const [reminderForm, setReminderForm] = useState(EMPTY_REMINDER_FORM);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [error, setError] = useState('');
+
+  const { data: projects } = useQuery<Project[]>({ queryKey: ['projects'], queryFn: fetchProjects });
 
   const mutation = useMutation({
     mutationFn: createLesson,
@@ -228,6 +281,7 @@ function AddItemDialog({ open, onClose, onReminderAdded }: { open: boolean; onCl
     setActiveType('task');
     setLessonForm(EMPTY_LESSON_FORM);
     setReminderForm(EMPTY_REMINDER_FORM);
+    setSelectedProjectId('');
     setError('');
     onClose();
   }
@@ -249,7 +303,8 @@ function AddItemDialog({ open, onClose, onReminderAdded }: { open: boolean; onCl
       handleClose();
     } else {
       if (!lessonForm.title.trim()) { setError('Title is required'); return; }
-      mutation.mutate({ title: lessonForm.title.trim(), content: lessonForm.content.trim(), importance: lessonForm.importance, item_type: activeType as LessonItemType });
+      const projects_tagged = activeType === 'task' && selectedProjectId ? [selectedProjectId] : undefined;
+      mutation.mutate({ title: lessonForm.title.trim(), content: lessonForm.content.trim(), importance: lessonForm.importance, item_type: activeType as LessonItemType, projects_tagged });
     }
   }
 
@@ -297,6 +352,17 @@ function AddItemDialog({ open, onClose, onReminderAdded }: { open: boolean; onCl
                   {[1, 2, 3, 4, 5].map((i) => <MenuItem key={i} value={i}>{IMPORTANCE_LABEL[i]}</MenuItem>)}
                 </Select>
               </Box>
+              {activeType === 'task' && (
+                <Box>
+                  <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 0.5 }}>Project (optional)</Typography>
+                  <Select value={selectedProjectId} onChange={(e) => setSelectedProjectId(e.target.value)} size="small" fullWidth displayEmpty>
+                    <MenuItem value=""><em style={{ fontStyle: 'normal', color: 'inherit' }}>— No project —</em></MenuItem>
+                    {(projects ?? []).map((p) => (
+                      <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                    ))}
+                  </Select>
+                </Box>
+              )}
             </>
           )}
 
@@ -320,6 +386,10 @@ export default function LessonsPage() {
   const { data: lessons, isLoading, isError } = useQuery({ queryKey: ['lessons'], queryFn: fetchLessons });
   const [reminders, setReminders] = useState<LearnReminder[]>(() => loadReminders());
   const [addOpen, setAddOpen] = useState(false);
+  const [lessonsOrder, setLessonsOrder] = useState<string[]>(() => loadOrder(LESSONS_ORDER_KEY));
+  const [remindersOrder, setRemindersOrder] = useState<string[]>(() => loadOrder(REMINDERS_ORDER_KEY));
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const toggleMutation = useMutation({
     mutationFn: toggleLessonDone,
@@ -343,6 +413,32 @@ export default function LessonsPage() {
     saveReminders(updated);
   }
 
+  function handleLessonDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const currentList = applyOrder(lessonList, lessonsOrder);
+    const oldIndex = currentList.findIndex((l) => l.id === active.id);
+    const newIndex = currentList.findIndex((l) => l.id === over.id);
+    const reordered = arrayMove(currentList, oldIndex, newIndex);
+    const newOrder = reordered.map((l) => l.id);
+    setLessonsOrder(newOrder);
+    saveOrder(LESSONS_ORDER_KEY, newOrder);
+  }
+
+  function handleReminderDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const currentList = applyOrder(reminders, remindersOrder);
+    const oldIndex = currentList.findIndex((r) => r.id === active.id);
+    const newIndex = currentList.findIndex((r) => r.id === over.id);
+    const reordered = arrayMove(currentList, oldIndex, newIndex);
+    const newOrder = reordered.map((r) => r.id);
+    setRemindersOrder(newOrder);
+    saveOrder(REMINDERS_ORDER_KEY, newOrder);
+    setReminders(reordered);
+    saveReminders(reordered);
+  }
+
   const cardStyle = {
     bgcolor: 'background.paper',
     border: `1px solid ${theme.palette.divider}`,
@@ -358,13 +454,15 @@ export default function LessonsPage() {
   }
 
   const lessonList = lessons ?? [];
+  const sortedLessons = applyOrder(lessonList, lessonsOrder);
+  const sortedReminders = applyOrder(reminders, remindersOrder);
   const totalCount = lessonList.length + reminders.length;
   const doneCount = lessonList.filter((l) => l.done).length + reminders.filter((r) => r.done).length;
   const criticalCount = lessonList.filter((l) => l.importance >= 4).length;
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={3}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1.5}>
         <Stack direction="row" alignItems="center" spacing={2}>
           <Box sx={{ width: 3, height: 28, bgcolor: 'warning.main', borderRadius: 1 }} />
           <Box>
@@ -380,20 +478,20 @@ export default function LessonsPage() {
         </Button>
       </Stack>
 
-      <Stack direction="row" spacing={1.5} mb={3}>
+      <Stack direction="row" spacing={1} mb={1.5}>
         {[
           { label: 'Total', value: totalCount, color: theme.palette.text.primary },
           { label: 'Done', value: doneCount, color: theme.palette.success.main },
           { label: 'Remaining', value: totalCount - doneCount, color: theme.palette.warning.main },
           { label: 'Critical', value: criticalCount, color: theme.palette.primary.main },
         ].map((s) => (
-          <Box key={s.label} sx={{ flex: 1, px: 1.5, py: 1.25, ...cardStyle, textAlign: 'center' }}>
-            <Typography sx={{ fontSize: '1.4rem', fontWeight: 500, color: s.color, fontFamily: '"Google Sans", "Roboto", sans-serif', lineHeight: 1 }}>{s.value}</Typography>
-            <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled', mt: 0.25 }}>{s.label}</Typography>
+          <Box key={s.label} sx={{ flex: 1, px: 1, py: 0.75, ...cardStyle, textAlign: 'center' }}>
+            <Typography sx={{ fontSize: '1.1rem', fontWeight: 500, color: s.color, fontFamily: '"Google Sans", "Roboto", sans-serif', lineHeight: 1 }}>{s.value}</Typography>
+            <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', mt: 0.2 }}>{s.label}</Typography>
           </Box>
         ))}
 
-        <Box sx={{ flex: 3, px: 2, py: 1, ...cardStyle }}>
+        <Box sx={{ flex: 3, px: 1.5, py: 0.75, ...cardStyle }}>
           <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled', mb: 0.75 }}>Priority Legend</Typography>
           <Stack direction="row" spacing={1.5} flexWrap="wrap">
             {[1, 2, 3, 4, 5].map((i) => (
@@ -406,13 +504,23 @@ export default function LessonsPage() {
         </Box>
       </Stack>
 
-      <Stack spacing={1.5}>
-        {lessonList.map((lesson, i) => (
-          <LessonCard key={lesson.id} lesson={lesson} index={i} onToggleDone={(id) => toggleMutation.mutate(id)} onDelete={(id) => deleteMutation.mutate(id)} />
-        ))}
-        {reminders.map((reminder, i) => (
-          <ReminderCard key={reminder.id} reminder={reminder} index={lessonList.length + i} onToggle={handleToggleReminder} onDelete={handleDeleteReminder} />
-        ))}
+      <Stack spacing={0.5}>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleLessonDragEnd}>
+          <SortableContext items={sortedLessons.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+            {sortedLessons.map((lesson, i) => (
+              <LessonCard key={lesson.id} lesson={lesson} index={i} onToggleDone={(id) => toggleMutation.mutate(id)} onDelete={(id) => deleteMutation.mutate(id)} />
+            ))}
+          </SortableContext>
+        </DndContext>
+
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleReminderDragEnd}>
+          <SortableContext items={sortedReminders.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+            {sortedReminders.map((reminder, i) => (
+              <ReminderCard key={reminder.id} reminder={reminder} index={sortedLessons.length + i} onToggle={handleToggleReminder} onDelete={handleDeleteReminder} />
+            ))}
+          </SortableContext>
+        </DndContext>
+
         {totalCount === 0 && (
           <Box sx={{ py: 6, textAlign: 'center', border: `1px dashed ${theme.palette.divider}`, borderRadius: 2 }}>
             <Typography sx={{ color: 'text.disabled', fontSize: '0.875rem' }}>

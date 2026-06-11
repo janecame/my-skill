@@ -4,66 +4,58 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Skill Progress Tracker** is a full-stack web application for visualizing and tracking personal learning journeys, including skill progression, project milestones, and lessons learned.
-
-See `skill-progress-tracker-plan.md` for the complete feature roadmap and implementation phases.
+**Skill Progress Tracker** is a full-stack web application for tracking personal learning journeys — skills, projects, and lessons/tasks. See `skill-progress-tracker-plan.md` for the feature roadmap.
 
 ## Tech Stack
 
-- **Frontend**: MUI + TanStack Query + Zustand + React Hook Form + Zod + TypeScript
-- **Backend**: Node.js + Express + TypeScript + Prisma
+- **Frontend** (`fe/`): React 18 + Vite + MUI v5 + TanStack Query v5 + Recharts + dnd-kit + TypeScript
+- **Backend** (`be/`): Node.js + Express + TypeScript + Supabase JS client
 - **Database**: PostgreSQL via Supabase
-- **Testing**: Playwright (for end-to-end tests)
-
-## Key Database Tables
-
-```
-skills: id, name, category, proficiency (0-100%), started_date, notes
-projects: id, name, description, status (0-100%), tech_stack, skills_used, start/end_date, url
-lessons: id, title, content, skills_tagged, projects_tagged, date_learned, importance
-progress_history: id, skill_id, old_value, new_value, updated_at
-```
-
-See the plan document for the full schema.
 
 ## Development Commands
 
-_To be added once the project is initialized. Expected setup:_
+Both `fe/` and `be/` are separate npm workspaces — install and run them independently.
+
 ```bash
-npm install
-npm run dev          # Start dev server
-npm run build        # Build for production
-npm test             # Run tests
-npm run test:watch   # Watch mode for development
+# Backend (port 3001)
+cd be && npm install
+npm run dev       # nodemon + ts-node, watches src/
+
+# Frontend (port 3000)
+cd fe && npm install
+npm run dev       # Vite dev server, proxies /api → localhost:3001
+npm run build     # tsc + vite build
 ```
 
-## Architecture Notes
+Backend requires a `.env` file in `be/` with `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
 
-- **API Layer**: Use Next.js API routes in `/app/api` for all backend operations
-- **Database Access**: Leverage Supabase client throughout the app; consider creating utility functions in `/lib/supabase.ts` for common queries
-- **Components**: Keep UI components in `/app/components`, organized by feature (e.g., `/components/skills`, `/components/projects`)
-- **State Management**: Use React hooks and context as needed; avoid external state libraries initially for simplicity
-- **Charts/Visualization**: Recharts components should be isolated in their own component files for easy testing and reuse
+## Architecture
 
-## Implementation Strategy
+### Frontend (`fe/src/`)
+- `api.ts` — all fetch calls; thin wrappers around `GET/POST/PUT/PATCH/DELETE /api/*`
+- `types.ts` — shared TypeScript interfaces (source of truth for FE types)
+- `pages/` — one file per route: `OverviewPage`, `SkillsPage`, `ProjectsPage`, `LessonsPage`, `SettingsPage`
+- `App.tsx` — router, MUI theme (Google-style, supports light/dark), sticky nav header
 
-Follow the phases defined in the plan:
-1. **Phase 1 (MVP)**: Dashboard layout, CRUD for skills/projects, progress bars
-2. **Phase 2**: Learning journal, progress charts, filtering
-3. **Phase 3**: Polish and mobile responsiveness
-4. **Phase 4**: Advanced features (export/import, analytics, etc.)
+Vite proxies `/api` to `http://localhost:3001`, so `fe/src/api.ts` uses relative `/api` paths.
 
-Start with static/hardcoded data to build the UI, then wire up Supabase.
+### Backend (`be/src/`)
+- `index.ts` — Express app, mounts routers at `/api/{skills,projects,lessons,goals,tech-stack-options}`
+- `routes/` — one file per resource; each route queries Supabase directly and shapes the response
+- `lib/supabase.ts` — single shared Supabase client
 
-## Common Workflows
+### Database (Supabase)
+Key tables and their relational joins used in routes:
+- `skills` joined with `skill_goals(goal_id)` and `sub_skills(*)`
+- `projects` joined with `project_skills(skill_id)`
+- `lessons` — flat table with `item_type: 'task' | 'learn' | 'skill'`
+- `goals`, `tech_stack_options` — reference/lookup tables
 
-- **Adding a new feature**: Create new components, define Supabase queries in `/lib`, wire up in the relevant page
-- **Testing**: Write Playwright tests in `/e2e` directory; test critical user flows (add skill, create project, etc.)
-- **Data changes**: Update the Supabase schema first, then update TypeScript types in `/lib/types.ts`
+Types are duplicated between `be/src/types.ts` and `fe/src/types.ts` — keep them in sync when changing the schema. The FE version is a superset (adds `TechStackOption`, `LearnReminder`, `SubSkillState`, `item_type`).
 
-## Important Patterns
+## Key Patterns
 
-- Always validate user input on the backend (even if you validate on the frontend)
-- Use TypeScript for all code—define types for database entities in `/lib/types.ts`
-- Keep Supabase credentials in environment variables (`.env.local`)
-- Use SQL `created_at` and `updated_at` timestamps on all tables for audit trails
+- Route handlers call `supabase` directly — no ORM, no service layer
+- Shape functions (`shapeSkill`, `shapeProject`) in each route file transform raw Supabase rows into the API response shape
+- `sub_skills` uses a recursive tree built in `buildSubSkillTree` in `routes/skills.ts`
+- `project_skills` is a join table; on project update, it is deleted and re-inserted wholesale

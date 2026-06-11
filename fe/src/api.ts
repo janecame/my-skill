@@ -1,4 +1,4 @@
-import { Goal, Skill, Project, Lesson, LessonItemType, TechStackOption } from './types';
+import { Goal, Skill, Project, Lesson, TechStackOption } from './types';
 
 const BASE = '/api';
 
@@ -39,7 +39,7 @@ export const fetchProjects = () => get<Project[]>('/projects');
 export const fetchLessons = () => get<Lesson[]>('/lessons');
 export const fetchGoals = () => get<Goal[]>('/goals');
 
-export const createLesson = (data: Pick<Lesson, 'title' | 'content' | 'importance' | 'item_type'>) =>
+export const createLesson = (data: Pick<Lesson, 'title' | 'content' | 'importance' | 'item_type'> & { projects_tagged?: string[] }) =>
   post<Lesson>('/lessons', data);
 
 export const toggleLessonDone = (id: string) =>
