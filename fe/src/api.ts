@@ -1,38 +1,15 @@
+import axios from 'axios';
 import { Goal, Skill, Project, Lesson, TechStackOption } from './types';
 
-const BASE = '/api';
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || '/api',
+});
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-  return res.json();
-}
-
-async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-  return res.json();
-}
-
-async function patch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { method: 'PATCH' });
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-  return res.json();
-}
-
-async function put<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-  return res.json();
-}
+const get = <T>(path: string) => api.get<T>(path).then((r) => r.data);
+const post = <T>(path: string, body: unknown) => api.post<T>(path, body).then((r) => r.data);
+const put = <T>(path: string, body: unknown) => api.put<T>(path, body).then((r) => r.data);
+const patch = <T>(path: string) => api.patch<T>(path).then((r) => r.data);
+const del = (path: string) => api.delete(path).then((r) => r.data);
 
 export const fetchSkills = () => get<Skill[]>('/skills');
 export const fetchProjects = () => get<Project[]>('/projects');
@@ -45,10 +22,7 @@ export const createLesson = (data: Pick<Lesson, 'title' | 'content' | 'importanc
 export const toggleLessonDone = (id: string) =>
   patch<Lesson>(`/lessons/${id}/done`);
 
-export const deleteLesson = (id: string) =>
-  fetch(`/api/lessons/${id}`, { method: 'DELETE' }).then((r) => {
-    if (!r.ok) throw new Error(`Request failed: ${r.status}`);
-  });
+export const deleteLesson = (id: string) => del(`/lessons/${id}`);
 
 export const createProject = (data: Pick<Project, 'name' | 'description' | 'status' | 'tech_stack' | 'start_date' | 'url' | 'github_url' | 'remaining_tasks'>) =>
   post<Project>('/projects', data);
@@ -64,7 +38,4 @@ export const createTechStackOption = (name: string) =>
 export const updateTechStackOption = (id: string, name: string) =>
   put<TechStackOption>(`/tech-stack-options/${id}`, { name });
 
-export const deleteTechStackOption = (id: string) =>
-  fetch(`/api/tech-stack-options/${id}`, { method: 'DELETE' }).then((r) => {
-    if (!r.ok) throw new Error(`Request failed: ${r.status}`);
-  });
+export const deleteTechStackOption = (id: string) => del(`/tech-stack-options/${id}`);
