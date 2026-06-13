@@ -11,6 +11,8 @@ export interface SubSkill {
   id: string;
   name: string;
   description: string;
+  acquired: boolean;
+  mastery: string | null;
   sub_skills?: SubSkill[];
 }
 

@@ -2,7 +2,7 @@ import axios from 'axios';
 import { Goal, Skill, Project, Lesson, TechStackOption } from './types';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: '/api',
 });
 
 const get = <T>(path: string) => api.get<T>(path).then((r) => r.data);
@@ -39,3 +39,6 @@ export const updateTechStackOption = (id: string, name: string) =>
   put<TechStackOption>(`/tech-stack-options/${id}`, { name });
 
 export const deleteTechStackOption = (id: string) => del(`/tech-stack-options/${id}`);
+
+export const updateSubSkillState = (id: string, acquired: boolean, mastery: string | null) =>
+  api.patch(`/skills/sub-skills/${id}`, { acquired, mastery }).then((r) => r.data);

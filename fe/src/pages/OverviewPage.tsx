@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Box, CircularProgress, Stack, Typography, useTheme } from '@mui/material';
+import { Box, Button, CircularProgress, Stack, Typography, useTheme } from '@mui/material';
 import {
   RadarChart,
   Radar,
@@ -22,10 +22,10 @@ type AllItemType = LessonItemType | 'reminder';
 
 const ITEM_TYPE_ORDER: Record<AllItemType, number> = { task: 0, reminder: 1, learn: 2, skill: 3 };
 const ITEM_TYPE_CONFIG: Record<AllItemType, { label: string; color: string; bg: string; border: string }> = {
-  task:     { label: 'Task',     color: '#f9ab00', bg: 'rgba(249,171,0,0.1)',   border: 'rgba(249,171,0,0.35)'  },
-  learn:    { label: 'Learn',    color: '#1a73e8', bg: 'rgba(26,115,232,0.08)', border: 'rgba(26,115,232,0.3)'  },
-  skill:    { label: 'Skill',    color: '#1e8e3e', bg: 'rgba(30,142,62,0.08)',  border: 'rgba(30,142,62,0.3)'   },
-  reminder: { label: 'Reminder', color: '#1e8e3e', bg: 'rgba(30,142,62,0.08)', border: 'rgba(30,142,62,0.3)'   },
+  task: { label: 'Task', color: '#f9ab00', bg: 'rgba(249,171,0,0.1)', border: 'rgba(249,171,0,0.35)' },
+  learn: { label: 'Learn', color: '#1a73e8', bg: 'rgba(26,115,232,0.08)', border: 'rgba(26,115,232,0.3)' },
+  skill: { label: 'Skill', color: '#1e8e3e', bg: 'rgba(30,142,62,0.08)', border: 'rgba(30,142,62,0.3)' },
+  reminder: { label: 'Reminder', color: '#1e8e3e', bg: 'rgba(30,142,62,0.08)', border: 'rgba(30,142,62,0.3)' },
 };
 
 type QueueItem =
@@ -228,7 +228,7 @@ export default function OverviewPage() {
       {/* Page header */}
       <Stack direction="row" alignItems="center" spacing={2} mb={3}>
         <Box sx={{ width: 3, height: 28, bgcolor: 'primary.main', borderRadius: 1 }} />
-        <Box>
+        <Box flex={1}>
           <Typography sx={{ fontSize: '1.5rem', fontWeight: 500, color: 'text.primary', fontFamily: '"Google Sans", "Roboto", sans-serif', lineHeight: 1 }}>
             Overview
           </Typography>
@@ -236,6 +236,15 @@ export default function OverviewPage() {
             Progress summary
           </Typography>
         </Box>
+        {/* <Button
+          size="small"
+          variant="outlined"
+          color="error"
+          onClick={() => { localStorage.removeItem('skill-tracker:sub-skill-states'); window.location.reload(); }}
+          sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+        >
+          Clear skill localStorage
+        </Button> */}
       </Stack>
 
       {/* Top stats */}

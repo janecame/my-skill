@@ -27,17 +27,22 @@ npm run dev       # Vite dev server, proxies /api → localhost:3001
 npm run build     # tsc + vite build
 ```
 
-Backend requires a `.env` file in `be/` with `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
+There is no test suite configured.
+
+Backend requires a `.env` file in `be/` with `SUPABASE_URL` and `SUPABASE_ANON_KEY`. Frontend optionally reads `VITE_API_URL` to override the default `/api` base (used in `fe/src/api.ts`).
 
 ## Architecture
 
 ### Frontend (`fe/src/`)
-- `api.ts` — all fetch calls; thin wrappers around `GET/POST/PUT/PATCH/DELETE /api/*`
+- `api.ts` — all fetch calls using axios; thin wrappers around `GET/POST/PUT/PATCH/DELETE /api/*`
 - `types.ts` — shared TypeScript interfaces (source of truth for FE types)
 - `pages/` — one file per route: `OverviewPage`, `SkillsPage`, `ProjectsPage`, `LessonsPage`, `SettingsPage`
-- `App.tsx` — router, MUI theme (Google-style, supports light/dark), sticky nav header
+- `App.tsx` — router, MUI theme (Google-style, defaults to dark mode), sticky nav header
+- `utils/reminders.ts` — `LearnReminder` state is **localStorage-only**, not persisted to Supabase
 
 Vite proxies `/api` to `http://localhost:3001`, so `fe/src/api.ts` uses relative `/api` paths.
+
+The nav tab labelled "Task" maps to the `/lessons` route and `LessonsPage`.
 
 ### Backend (`be/src/`)
 - `index.ts` — Express app, mounts routers at `/api/{skills,projects,lessons,goals,tech-stack-options}`
@@ -48,14 +53,14 @@ Vite proxies `/api` to `http://localhost:3001`, so `fe/src/api.ts` uses relative
 Key tables and their relational joins used in routes:
 - `skills` joined with `skill_goals(goal_id)` and `sub_skills(*)`
 - `projects` joined with `project_skills(skill_id)`
-- `lessons` — flat table with `item_type: 'task' | 'learn' | 'skill'`
+- `lessons` joined with `lesson_skills(skill_id)` and `lesson_projects(project_id)`
 - `goals`, `tech_stack_options` — reference/lookup tables
 
-Types are duplicated between `be/src/types.ts` and `fe/src/types.ts` — keep them in sync when changing the schema. The FE version is a superset (adds `TechStackOption`, `LearnReminder`, `SubSkillState`, `item_type`).
+Types are duplicated between `be/src/types.ts` and `fe/src/types.ts` — keep them in sync when changing the schema. The FE version is a superset (adds `TechStackOption`, `LearnReminder`, `SubSkillState`, `item_type` on `Lesson`, `github_url`/`remaining_tasks` on `Project`). Note: `be/src/types.ts` currently lags — those extra fields are used in the route handlers even though they're absent from BE types.
 
 ## Key Patterns
 
 - Route handlers call `supabase` directly — no ORM, no service layer
-- Shape functions (`shapeSkill`, `shapeProject`) in each route file transform raw Supabase rows into the API response shape
+- Shape functions (`shapeSkill`, `shapeProject`, `shapeLesson`) in each route file transform raw Supabase rows into the API response shape
 - `sub_skills` uses a recursive tree built in `buildSubSkillTree` in `routes/skills.ts`
-- `project_skills` is a join table; on project update, it is deleted and re-inserted wholesale
+- Join tables (`project_skills`, `lesson_skills`, `lesson_projects`) are deleted and re-inserted wholesale on update

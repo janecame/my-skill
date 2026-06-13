@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Box,
   Button,
@@ -35,7 +35,7 @@ import {
   PolarRadiusAxis,
   Tooltip,
 } from 'recharts';
-import { fetchSkills, fetchGoals } from '../api';
+import { fetchSkills, fetchGoals, updateSubSkillState } from '../api';
 import { Goal, LearnReminder, MasteryLevel, Skill, SubSkill, SubSkillState } from '../types';
 import { appendReminder } from '../utils/reminders';
 
@@ -54,20 +54,6 @@ const MASTERY_VALUE: Record<MasteryLevel, number> = {
   Advanced: 75,
   Expert: 100,
 };
-
-const STORAGE_KEY = 'skill-tracker:sub-skill-states';
-function loadStates(): Record<string, SubSkillState> {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  } catch {
-    return {};
-  }
-}
-
-function saveStates(states: Record<string, SubSkillState>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(states));
-}
-
 
 
 function useCardStyle() {
@@ -115,17 +101,17 @@ function RadialProgress({ value, size = 80, label }: { value: number; size?: num
   );
 }
 
-function NestedSubSkillRow({ subSkill, state, onChange }: { subSkill: SubSkill; state: SubSkillState; onChange: (next: SubSkillState) => void }) {
+function NestedSubSkillRow({ subSkill, onChange }: { subSkill: SubSkill; onChange: (next: SubSkillState) => void }) {
   return (
     <Stack direction="row" alignItems="center" spacing={1} sx={{ py: 0.4, px: 1 }}>
       <Checkbox
-        checked={state.acquired}
-        onChange={(e) => onChange({ ...state, acquired: e.target.checked })}
+        checked={subSkill.acquired}
+        onChange={(e) => onChange({ acquired: e.target.checked, mastery: subSkill.mastery })}
         size="small"
         sx={{ p: 0 }}
       />
       <Box>
-        <Typography sx={{ fontSize: '0.72rem', fontWeight: state.acquired ? 500 : 400, color: state.acquired ? 'text.primary' : 'text.disabled', fontFamily: '"Google Sans", "Roboto", sans-serif' }}>
+        <Typography sx={{ fontSize: '0.72rem', fontWeight: subSkill.acquired ? 500 : 400, color: subSkill.acquired ? 'text.primary' : 'text.disabled', fontFamily: '"Google Sans", "Roboto", sans-serif' }}>
           {subSkill.name}
         </Typography>
         {subSkill.description && (
@@ -136,33 +122,31 @@ function NestedSubSkillRow({ subSkill, state, onChange }: { subSkill: SubSkill; 
   );
 }
 
-function SubSkillRow({ subSkill, states, onStateChange, onPlanToLearn }: {
+function SubSkillRow({ subSkill, onStateChange, onPlanToLearn }: {
   subSkill: SubSkill;
-  states: Record<string, SubSkillState>;
   onStateChange: (id: string, next: SubSkillState) => void;
   onPlanToLearn: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
   const nested = subSkill.sub_skills ?? [];
-  const acquiredCount = nested.filter((s) => states[s.id]?.acquired).length;
+  const acquiredCount = nested.filter((s) => s.acquired).length;
   const total = nested.length;
   const progress = total > 0 ? Math.round((acquiredCount / total) * 100) : 0;
-  const topState = states[subSkill.id] ?? { acquired: false, mastery: null };
 
   return (
     <Box sx={{
       borderRadius: 1,
       border: '1px solid',
-      borderColor: topState.acquired ? 'rgba(26,115,232,0.25)' : theme.palette.divider,
-      bgcolor: topState.acquired ? 'rgba(26,115,232,0.04)' : 'transparent',
+      borderColor: subSkill.acquired ? 'rgba(26,115,232,0.25)' : theme.palette.divider,
+      bgcolor: subSkill.acquired ? 'rgba(26,115,232,0.04)' : 'transparent',
       overflow: 'hidden',
       transition: 'all 0.15s ease',
     }}>
       <Stack direction="row" alignItems="center" spacing={1.5} sx={{ py: 0.75, px: 1.5, '&:hover': { bgcolor: 'rgba(26,115,232,0.04)' } }}>
         <Checkbox
-          checked={topState.acquired}
-          onChange={(e) => onStateChange(subSkill.id, { ...topState, acquired: e.target.checked })}
+          checked={subSkill.acquired}
+          onChange={(e) => onStateChange(subSkill.id, { acquired: e.target.checked, mastery: subSkill.mastery })}
           size="small"
           sx={{ p: 0 }}
         />
@@ -172,7 +156,7 @@ function SubSkillRow({ subSkill, states, onStateChange, onPlanToLearn }: {
           </Typography>
         )}
         <Box flex={1} minWidth={0}>
-          <Typography sx={{ fontSize: '0.8rem', fontWeight: topState.acquired ? 500 : 400, color: topState.acquired ? 'text.primary' : 'text.secondary', fontFamily: '"Google Sans", "Roboto", sans-serif' }}>
+          <Typography sx={{ fontSize: '0.8rem', fontWeight: subSkill.acquired ? 500 : 400, color: subSkill.acquired ? 'text.primary' : 'text.secondary', fontFamily: '"Google Sans", "Roboto", sans-serif' }}>
             {subSkill.name}
           </Typography>
           {subSkill.description && (
@@ -181,11 +165,11 @@ function SubSkillRow({ subSkill, states, onStateChange, onPlanToLearn }: {
         </Box>
         <FormControl size="small" sx={{ minWidth: 130 }}>
           <Select
-            value={topState.mastery ?? ''}
+            value={subSkill.mastery ?? ''}
             displayEmpty
-            disabled={!topState.acquired}
-            onChange={(e) => onStateChange(subSkill.id, { ...topState, mastery: (e.target.value as MasteryLevel) || null })}
-            renderValue={(val) =>
+            disabled={!subSkill.acquired}
+            onChange={(e) => onStateChange(subSkill.id, { acquired: subSkill.acquired, mastery: (e.target.value as MasteryLevel) || null })}
+            renderValue={(val: string) =>
               val ? (
                 <Chip label={val} size="small" sx={{ bgcolor: MASTERY_COLOR[val as MasteryLevel] + '18', color: MASTERY_COLOR[val as MasteryLevel], border: `1px solid ${MASTERY_COLOR[val as MasteryLevel]}40`, fontWeight: 500, height: 20, fontSize: '0.65rem' }} />
               ) : (
@@ -222,7 +206,7 @@ function SubSkillRow({ subSkill, states, onStateChange, onPlanToLearn }: {
         <Collapse in={expanded}>
           <Box sx={{ px: 2, pb: 0.75, pt: 0.25, borderTop: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }}>
             {nested.map((child) => (
-              <NestedSubSkillRow key={child.id} subSkill={child} state={states[child.id] ?? { acquired: false, mastery: null }} onChange={(next) => onStateChange(child.id, next)} />
+              <NestedSubSkillRow key={child.id} subSkill={child} onChange={(next) => onStateChange(child.id, next)} />
             ))}
           </Box>
         </Collapse>
@@ -231,17 +215,17 @@ function SubSkillRow({ subSkill, states, onStateChange, onPlanToLearn }: {
   );
 }
 
-function SkillRadarChart({ skill, states }: { skill: Skill; states: Record<string, SubSkillState> }) {
+function SkillRadarChart({ skill }: { skill: Skill }) {
   const theme = useTheme();
   const tooltipStyle = useTooltipStyle();
   const data = skill.sub_skills.map((sub) => {
     const nested = sub.sub_skills ?? [];
     let value: number;
     if (nested.length > 0) {
-      const acquired = nested.filter((s) => states[s.id]?.acquired).length;
+      const acquired = nested.filter((s) => s.acquired).length;
       value = Math.round((acquired / nested.length) * 100);
     } else {
-      value = states[sub.id]?.acquired ? 100 : 0;
+      value = sub.acquired ? 100 : 0;
     }
     return { subject: sub.name.length > 12 ? sub.name.slice(0, 12) + '…' : sub.name, value };
   });
@@ -268,9 +252,8 @@ function SkillRadarChart({ skill, states }: { skill: Skill; states: Record<strin
   );
 }
 
-function SkillCard({ skill, states, onStateChange, onPlanToLearn }: {
+function SkillCard({ skill, onStateChange, onPlanToLearn }: {
   skill: Skill;
-  states: Record<string, SubSkillState>;
   onStateChange: (subSkillId: string, next: SubSkillState) => void;
   onPlanToLearn: (subSkillName: string) => void;
 }) {
@@ -278,12 +261,12 @@ function SkillCard({ skill, states, onStateChange, onPlanToLearn }: {
   const theme = useTheme();
   const cardStyle = useCardStyle();
 
-  const acquired = skill.sub_skills.filter((s) => states[s.id]?.acquired).length;
+  const acquired = skill.sub_skills.filter((s) => s.acquired).length;
   const total = skill.sub_skills.length;
   const progress = total > 0 ? Math.round((acquired / total) * 100) : 0;
 
   const avgMastery = (() => {
-    const masteries = skill.sub_skills.filter((s) => states[s.id]?.mastery).map((s) => MASTERY_VALUE[states[s.id].mastery!]);
+    const masteries = skill.sub_skills.filter((s) => s.mastery).map((s) => MASTERY_VALUE[s.mastery!]);
     return masteries.length > 0 ? Math.round(masteries.reduce((a, b) => a + b, 0) / masteries.length) : 0;
   })();
 
@@ -316,11 +299,11 @@ function SkillCard({ skill, states, onStateChange, onPlanToLearn }: {
         </IconButton>
       </Stack>
       <Collapse in={expanded}>
-        <SkillRadarChart skill={skill} states={states} />
+        <SkillRadarChart skill={skill} />
         <Box sx={{ borderTop: `1px solid ${theme.palette.divider}` }}>
           <Stack spacing={0.5} sx={{ px: 2, py: 1.5 }}>
             {skill.sub_skills.map((sub) => (
-              <SubSkillRow key={sub.id} subSkill={sub} states={states} onStateChange={onStateChange}
+              <SubSkillRow key={sub.id} subSkill={sub} onStateChange={onStateChange}
                 onPlanToLearn={() => onPlanToLearn(sub.name)} />
             ))}
           </Stack>
@@ -330,14 +313,14 @@ function SkillCard({ skill, states, onStateChange, onPlanToLearn }: {
   );
 }
 
-function GoalRadarChart({ skills, states }: { skills: Skill[]; states: Record<string, SubSkillState> }) {
+function GoalRadarChart({ skills }: { skills: Skill[] }) {
   const theme = useTheme();
   const cardStyle = useCardStyle();
   const tooltipStyle = useTooltipStyle();
 
   const data = skills.map((skill) => {
     const leafSubs = skill.sub_skills.flatMap((s) => s.sub_skills && s.sub_skills.length > 0 ? s.sub_skills : [s]);
-    const acquired = leafSubs.filter((s) => states[s.id]?.acquired).length;
+    const acquired = leafSubs.filter((s) => s.acquired).length;
     const total = leafSubs.length;
     const progress = total > 0 ? Math.round((acquired / total) * 100) : 0;
     return { subject: skill.name.length > 10 ? skill.name.slice(0, 10) + '…' : skill.name, value: progress };
@@ -365,10 +348,9 @@ function GoalRadarChart({ skills, states }: { skills: Skill[]; states: Record<st
   );
 }
 
-function GoalView({ goal, skills, states, onStateChange, onPlanToLearn }: {
+function GoalView({ goal, skills, onStateChange, onPlanToLearn }: {
   goal: Goal;
   skills: Skill[];
-  states: Record<string, SubSkillState>;
   onStateChange: (subSkillId: string, next: SubSkillState) => void;
   onPlanToLearn: (subSkillName: string, skillName: string, goalName: string) => void;
 }) {
@@ -378,11 +360,11 @@ function GoalView({ goal, skills, states, onStateChange, onPlanToLearn }: {
   const goalSkills = skills.filter((s) => s.goal_ids.includes(goal.id));
   const allSubs = goalSkills.flatMap((s) => s.sub_skills);
   const allLeafSubs = allSubs.flatMap((s) => s.sub_skills && s.sub_skills.length > 0 ? s.sub_skills : [s]);
-  const acquiredCount = allLeafSubs.filter((s) => states[s.id]?.acquired).length;
+  const acquiredCount = allLeafSubs.filter((s) => s.acquired).length;
   const totalCount = allLeafSubs.length;
   const overallProgress = totalCount > 0 ? Math.round((acquiredCount / totalCount) * 100) : 0;
-  const expertCount = allSubs.filter((s) => states[s.id]?.mastery === 'Expert').length;
-  const advancedCount = allSubs.filter((s) => states[s.id]?.mastery === 'Advanced').length;
+  const expertCount = allSubs.filter((s) => s.mastery === 'Expert').length;
+  const advancedCount = allSubs.filter((s) => s.mastery === 'Advanced').length;
 
   return (
     <Box>
@@ -420,11 +402,11 @@ function GoalView({ goal, skills, states, onStateChange, onPlanToLearn }: {
         </Stack>
       </Box>
 
-      <GoalRadarChart skills={goalSkills} states={states} />
+      <GoalRadarChart skills={goalSkills} />
 
       <Stack spacing={1.5}>
         {goalSkills.map((skill) => (
-          <SkillCard key={skill.id} skill={skill} states={states} onStateChange={onStateChange}
+          <SkillCard key={skill.id} skill={skill} onStateChange={onStateChange}
             onPlanToLearn={(subSkillName) => onPlanToLearn(subSkillName, skill.name, goal.name)} />
         ))}
         {goalSkills.length === 0 && (
@@ -514,17 +496,38 @@ function PlanToLearnDialog({ state, onClose }: { state: PlanDialogState; onClose
 
 export default function SkillsPage() {
   const [activeTab, setActiveTab] = useState(0);
-  const [states, setStates] = useState<Record<string, SubSkillState>>(loadStates);
   const [planDialog, setPlanDialog] = useState<PlanDialogState>({ open: false, subSkillName: '', skillName: '', goalName: '' });
   const theme = useTheme();
-
-  useEffect(() => { saveStates(states); }, [states]);
+  const queryClient = useQueryClient();
 
   const { data: goals, isLoading: goalsLoading } = useQuery({ queryKey: ['goals'], queryFn: fetchGoals });
   const { data: skills, isLoading: skillsLoading, isError } = useQuery({ queryKey: ['skills'], queryFn: fetchSkills });
 
+  const mutation = useMutation({
+    mutationFn: ({ id, next }: { id: string; next: SubSkillState }) =>
+      updateSubSkillState(id, next.acquired, next.mastery),
+    onMutate: async ({ id, next }) => {
+      await queryClient.cancelQueries({ queryKey: ['skills'] });
+      const prev = queryClient.getQueryData<Skill[]>(['skills']);
+      queryClient.setQueryData<Skill[]>(['skills'], (old) =>
+        old?.map((skill) => ({
+          ...skill,
+          sub_skills: skill.sub_skills.map((ss) =>
+            ss.id === id
+              ? { ...ss, ...next }
+              : { ...ss, sub_skills: ss.sub_skills?.map((nested) => nested.id === id ? { ...nested, ...next } : nested) }
+          ),
+        }))
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(['skills'], ctx.prev);
+    },
+  });
+
   const handleStateChange = (subSkillId: string, next: SubSkillState) => {
-    setStates((prev) => ({ ...prev, [subSkillId]: next }));
+    mutation.mutate({ id: subSkillId, next });
   };
 
   if (goalsLoading || skillsLoading) {
@@ -579,7 +582,6 @@ export default function SkillsPage() {
         <GoalView
           goal={activeGoal}
           skills={skills}
-          states={states}
           onStateChange={handleStateChange}
           onPlanToLearn={(subSkillName, skillName, goalName) =>
             setPlanDialog({ open: true, subSkillName, skillName, goalName })

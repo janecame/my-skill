@@ -10,6 +10,8 @@ function buildSubSkillTree(all: any[], parentId: string | null = null): any[] {
       id: s.id,
       name: s.name,
       description: s.description,
+      acquired: s.acquired ?? false,
+      mastery: s.mastery ?? null,
       sub_skills: buildSubSkillTree(all, s.id),
     }));
 }
@@ -45,6 +47,17 @@ router.get('/:id', async (req, res) => {
 
   if (error) return res.status(404).json({ message: 'Skill not found' });
   res.json(shapeSkill(data));
+});
+
+router.patch('/sub-skills/:id', async (req, res) => {
+  const { acquired, mastery } = req.body;
+  const { error } = await supabase
+    .from('sub_skills')
+    .update({ acquired, mastery: mastery ?? null })
+    .eq('id', req.params.id);
+
+  if (error) return res.status(500).json({ message: error.message });
+  res.json({ ok: true });
 });
 
 export default router;
