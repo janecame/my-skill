@@ -3,7 +3,7 @@ import { Goal, Skill, Project, Lesson, TechStackOption, LessonItemType } from '.
 import { getStoredToken } from './auth/AuthContext';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL_LOCAL || '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
 });
 
 // Attach the admin token (if logged in) to every request.
