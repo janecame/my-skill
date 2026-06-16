@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { supabase } from '../lib/supabase';
+import { requireAdmin } from '../middleware/requireAdmin';
 
 const router = Router();
 
@@ -39,7 +40,7 @@ router.get('/:id', async (req, res) => {
   res.json(shapeProject(data));
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireAdmin, async (req, res) => {
   const { name, description, status, tech_stack, skills_used, start_date, end_date, url, github_url, remaining_tasks } = req.body;
   if (!name) return res.status(400).json({ message: 'Name is required' });
 
@@ -76,7 +77,7 @@ router.post('/', async (req, res) => {
   res.status(201).json({ ...project, skills_used: skills_used ?? [], tech_stack: techStackArray, remaining_tasks: remainingTasksArray });
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAdmin, async (req, res) => {
   const { name, description, status, tech_stack, skills_used, start_date, end_date, url, github_url, remaining_tasks } = req.body;
   if (!name) return res.status(400).json({ message: 'Name is required' });
 

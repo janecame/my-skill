@@ -9,6 +9,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   IconButton,
   MenuItem,
   Select,
@@ -21,6 +22,10 @@ import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import StarIcon from '@mui/icons-material/Star';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
+import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import {
   DndContext,
   closestCenter,
@@ -36,14 +41,38 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { fetchLessons, createLesson, toggleLessonDone, deleteLesson, fetchProjects } from '../api';
+import { fetchLessons, createLesson, updateLesson, toggleLessonDone, toggleLessonStarred, deleteLesson, fetchProjects } from '../api';
 import { Lesson, LearnReminder, LessonItemType, Project } from '../types';
+import { useAuth } from '../auth/AuthContext';
 
 const IMPORTANCE_COLOR = ['', '#9aa0a6', '#80868b', '#0288d1', '#f9ab00', '#d93025'];
 const IMPORTANCE_LABEL = ['', 'Trivial', 'Minor', 'Notable', 'Important', 'Critical'];
 const LEARN_REMINDERS_KEY = 'skill-tracker:learn-reminders';
 const LESSONS_ORDER_KEY = 'skill-tracker:lessons-order';
 const REMINDERS_ORDER_KEY = 'skill-tracker:reminders-order';
+const STAR_LEVELS_KEY = 'skill-tracker:star-levels';
+const HIDDEN_ITEMS_KEY = 'skill-tracker:hidden-items';
+
+function loadStarLevels(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(STAR_LEVELS_KEY) || '{}'); } catch { return {}; }
+}
+function setStarLevel(id: string, level: number) {
+  const levels = loadStarLevels();
+  if (level === 0) delete levels[id]; else levels[id] = level;
+  localStorage.setItem(STAR_LEVELS_KEY, JSON.stringify(levels));
+}
+
+function loadHiddenItems(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_ITEMS_KEY) || '[]')); } catch { return new Set(); }
+}
+function toggleHiddenItem(id: string): Set<string> {
+  const hidden = loadHiddenItems();
+  hidden.has(id) ? hidden.delete(id) : hidden.add(id);
+  localStorage.setItem(HIDDEN_ITEMS_KEY, JSON.stringify([...hidden]));
+  return hidden;
+}
+
+const STAR_LABEL: Record<number, string> = { 1: 'Prioritize', 2: 'Moderate', 3: 'Strict' };
 
 type AllItemType = LessonItemType | 'reminder';
 
@@ -107,11 +136,31 @@ function ImportanceDots({ value }: { value: number }) {
   );
 }
 
-function LessonCard({ lesson, index, onToggleDone, onDelete }: { lesson: Lesson; index: number; onToggleDone: (id: string) => void; onDelete: (id: string) => void }) {
+function StarRating({ level, onStarClick }: { level: number; onStarClick: (starIndex: number) => void }) {
+  const label = STAR_LABEL[level];
+  return (
+    <Stack direction="row" alignItems="center" spacing={0.25}>
+      {[1, 2, 3].map((i) => (
+        <Box key={i} component="span" onClick={(e) => { e.stopPropagation(); onStarClick(i); }}
+          sx={{ color: i <= level ? '#f9ab00' : 'action.disabled', display: 'flex', alignItems: 'center', cursor: 'pointer', '&:hover': { color: '#f9ab00' } }}>
+          {i <= level ? <StarIcon sx={{ fontSize: 13 }} /> : <StarBorderIcon sx={{ fontSize: 13 }} />}
+        </Box>
+      ))}
+      {label && (
+        <Typography sx={{ fontSize: '0.58rem', color: '#f9ab00', fontFamily: '"Google Sans", "Roboto", sans-serif', ml: 0.25 }}>
+          {label}
+        </Typography>
+      )}
+    </Stack>
+  );
+}
+
+function LessonCard({ lesson, index, onToggleDone, onDelete, onEdit, onStar, onHide, starLevel, projectsMap, isAdmin }: { lesson: Lesson; index: number; onToggleDone: (id: string) => void; onDelete: (id: string) => void; onEdit: (lesson: Lesson) => void; onStar: (id: string, level: number) => void; onHide: (id: string) => void; starLevel: number; projectsMap: Map<string, string>; isAdmin: boolean }) {
   const theme = useTheme();
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lesson.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lesson.id, disabled: !isAdmin });
   const importanceColor = lesson.done ? theme.palette.text.disabled : (IMPORTANCE_COLOR[lesson.importance] || theme.palette.text.disabled);
   const importanceLabel = IMPORTANCE_LABEL[lesson.importance] || 'Unknown';
+  const projectName = lesson.projects_tagged[0] ? projectsMap.get(lesson.projects_tagged[0]) : undefined;
 
   return (
     <Box
@@ -134,13 +183,15 @@ function LessonCard({ lesson, index, onToggleDone, onDelete }: { lesson: Lesson;
       }}
     >
       <Box sx={{ width: 3, flexShrink: 0, bgcolor: importanceColor }} />
-      <Box
-        {...attributes}
-        {...listeners}
-        sx={{ display: 'flex', alignItems: 'center', px: 0.75, cursor: isDragging ? 'grabbing' : 'grab', color: 'text.disabled', flexShrink: 0, '&:hover': { color: 'text.secondary' } }}
-      >
-        <DragIndicatorIcon sx={{ fontSize: 16 }} />
-      </Box>
+      {isAdmin && (
+        <Box
+          {...attributes}
+          {...listeners}
+          sx={{ display: 'flex', alignItems: 'center', px: 0.75, cursor: isDragging ? 'grabbing' : 'grab', color: 'text.disabled', flexShrink: 0, '&:hover': { color: 'text.secondary' } }}
+        >
+          <DragIndicatorIcon sx={{ fontSize: 16 }} />
+        </Box>
+      )}
       <Box sx={{ flex: 1, px: 1.5, py: 0.75 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Stack direction="row" alignItems="center" spacing={1} flex={1} mr={1}>
@@ -148,6 +199,7 @@ function LessonCard({ lesson, index, onToggleDone, onDelete }: { lesson: Lesson;
               checked={lesson.done}
               onChange={() => onToggleDone(lesson.id)}
               size="small"
+              disabled={!isAdmin}
               sx={{ p: 0, color: 'text.disabled', '&.Mui-checked': { color: 'success.main' } }}
             />
             <Typography sx={{ fontSize: '0.65rem', fontWeight: 500, color: 'text.disabled', fontFamily: '"Google Sans", "Roboto", sans-serif', flexShrink: 0 }}>
@@ -172,9 +224,29 @@ function LessonCard({ lesson, index, onToggleDone, onDelete }: { lesson: Lesson;
                 {importanceLabel}
               </Typography>
             </Box>
-            <IconButton size="small" onClick={() => onDelete(lesson.id)} sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
-              <DeleteOutlineIcon sx={{ fontSize: 14 }} />
-            </IconButton>
+            {projectName && (
+              <Box sx={{ px: 0.75, py: 0.1, border: '1px solid rgba(26,115,232,0.35)', bgcolor: 'rgba(26,115,232,0.07)', borderRadius: 0.75, maxWidth: 120, overflow: 'hidden' }}>
+                <Typography sx={{ fontSize: '0.58rem', fontWeight: 500, color: '#1a73e8', fontFamily: '"Google Sans", "Roboto", sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {projectName}
+                </Typography>
+              </Box>
+            )}
+            {isAdmin
+              ? <StarRating level={starLevel} onStarClick={(i) => onStar(lesson.id, i)} />
+              : starLevel > 0 && <StarRating level={starLevel} onStarClick={() => {}} />}
+            {isAdmin && (
+              <>
+                <IconButton size="small" onClick={() => onEdit(lesson)} sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'primary.main' } }}>
+                  <EditOutlinedIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+                <IconButton size="small" onClick={() => onHide(lesson.id)} title="Hide item" sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'warning.main' } }}>
+                  <VisibilityOffOutlinedIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+                <IconButton size="small" onClick={() => onDelete(lesson.id)} sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
+                  <DeleteOutlineIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </>
+            )}
             <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', fontFamily: '"Google Sans", "Roboto", sans-serif', minWidth: 60, textAlign: 'right' }}>
               {new Date(lesson.date_learned).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </Typography>
@@ -185,9 +257,9 @@ function LessonCard({ lesson, index, onToggleDone, onDelete }: { lesson: Lesson;
   );
 }
 
-function ReminderCard({ reminder, index, onToggle, onDelete }: { reminder: LearnReminder; index: number; onToggle: (id: string) => void; onDelete: (id: string) => void }) {
+function ReminderCard({ reminder, index, onToggle, onDelete, isAdmin }: { reminder: LearnReminder; index: number; onToggle: (id: string) => void; onDelete: (id: string) => void; isAdmin: boolean }) {
   const theme = useTheme();
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: reminder.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: reminder.id, disabled: !isAdmin });
   const isOverdue = reminder.startDate && !reminder.done && new Date(reminder.startDate) < new Date();
   const accentColor = reminder.done ? theme.palette.text.disabled : isOverdue ? theme.palette.error.main : '#1e8e3e';
 
@@ -211,17 +283,19 @@ function ReminderCard({ reminder, index, onToggle, onDelete }: { reminder: Learn
       }}
     >
       <Box sx={{ width: 3, flexShrink: 0, bgcolor: accentColor }} />
-      <Box
-        {...attributes}
-        {...listeners}
-        sx={{ display: 'flex', alignItems: 'center', px: 0.75, cursor: isDragging ? 'grabbing' : 'grab', color: 'text.disabled', flexShrink: 0, '&:hover': { color: 'text.secondary' } }}
-      >
-        <DragIndicatorIcon sx={{ fontSize: 16 }} />
-      </Box>
+      {isAdmin && (
+        <Box
+          {...attributes}
+          {...listeners}
+          sx={{ display: 'flex', alignItems: 'center', px: 0.75, cursor: isDragging ? 'grabbing' : 'grab', color: 'text.disabled', flexShrink: 0, '&:hover': { color: 'text.secondary' } }}
+        >
+          <DragIndicatorIcon sx={{ fontSize: 16 }} />
+        </Box>
+      )}
       <Box sx={{ flex: 1, px: 1.5, py: 0.75 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Stack direction="row" alignItems="center" spacing={1} flex={1} mr={1}>
-            <IconButton size="small" onClick={() => onToggle(reminder.id)} sx={{ p: 0.25, color: reminder.done ? 'success.main' : 'text.disabled', '&:hover': { color: 'success.main' } }}>
+            <IconButton size="small" onClick={() => onToggle(reminder.id)} disabled={!isAdmin} sx={{ p: 0.25, color: reminder.done ? 'success.main' : 'text.disabled', '&:hover': { color: 'success.main' } }}>
               {reminder.done ? <CheckCircleIcon sx={{ fontSize: 18 }} /> : <RadioButtonUncheckedIcon sx={{ fontSize: 18 }} />}
             </IconButton>
             <Typography sx={{ fontSize: '0.7rem', fontWeight: 500, color: 'text.disabled', fontFamily: '"Google Sans", "Roboto", sans-serif', flexShrink: 0 }}>
@@ -247,9 +321,11 @@ function ReminderCard({ reminder, index, onToggle, onDelete }: { reminder: Learn
                   {new Date(reminder.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </Typography>
               )}
-              <IconButton size="small" onClick={() => onDelete(reminder.id)} sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
-                <DeleteOutlineIcon sx={{ fontSize: 15 }} />
-              </IconButton>
+              {isAdmin && (
+                <IconButton size="small" onClick={() => onDelete(reminder.id)} sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
+                  <DeleteOutlineIcon sx={{ fontSize: 15 }} />
+                </IconButton>
+              )}
             </Stack>
           </Stack>
         </Stack>
@@ -258,7 +334,7 @@ function ReminderCard({ reminder, index, onToggle, onDelete }: { reminder: Learn
   );
 }
 
-const EMPTY_LESSON_FORM = { title: '', content: '', importance: 3, item_type: 'task' as LessonItemType };
+const EMPTY_LESSON_FORM = { title: '', content: '', importance: 3, item_type: 'task' as LessonItemType, starred: false };
 const EMPTY_REMINDER_FORM = { subSkillName: '', skillName: '', goalName: '', startDate: '' };
 
 function AddItemDialog({ open, onClose, onReminderAdded }: { open: boolean; onClose: () => void; onReminderAdded: () => void }) {
@@ -304,7 +380,7 @@ function AddItemDialog({ open, onClose, onReminderAdded }: { open: boolean; onCl
     } else {
       if (!lessonForm.title.trim()) { setError('Title is required'); return; }
       const projects_tagged = activeType === 'task' && selectedProjectId ? [selectedProjectId] : undefined;
-      mutation.mutate({ title: lessonForm.title.trim(), content: lessonForm.content.trim(), importance: lessonForm.importance, item_type: activeType as LessonItemType, projects_tagged });
+      mutation.mutate({ title: lessonForm.title.trim(), content: lessonForm.content.trim(), importance: lessonForm.importance, item_type: activeType as LessonItemType, starred: lessonForm.starred, projects_tagged });
     }
   }
 
@@ -352,6 +428,17 @@ function AddItemDialog({ open, onClose, onReminderAdded }: { open: boolean; onCl
                   {[1, 2, 3, 4, 5].map((i) => <MenuItem key={i} value={i}>{IMPORTANCE_LABEL[i]}</MenuItem>)}
                 </Select>
               </Box>
+              <Box
+                onClick={() => setLessonForm((f) => ({ ...f, starred: !f.starred }))}
+                sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', width: 'fit-content', py: 0.25 }}
+              >
+                {lessonForm.starred
+                  ? <StarIcon sx={{ fontSize: 20, color: '#f9ab00' }} />
+                  : <StarBorderIcon sx={{ fontSize: 20, color: 'text.disabled' }} />}
+                <Typography sx={{ fontSize: '0.8rem', color: lessonForm.starred ? '#f9ab00' : 'text.secondary', fontFamily: '"Google Sans", "Roboto", sans-serif' }}>
+                  {lessonForm.starred ? 'Starred — will appear at top' : 'Star this item'}
+                </Typography>
+              </Box>
               {activeType === 'task' && (
                 <Box>
                   <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 0.5 }}>Project (optional)</Typography>
@@ -380,12 +467,145 @@ function AddItemDialog({ open, onClose, onReminderAdded }: { open: boolean; onCl
   );
 }
 
+function EditLessonDialog({ lesson, onClose }: { lesson: Lesson; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({ title: lesson.title, content: lesson.content, importance: lesson.importance, item_type: lesson.item_type, starred: lesson.starred });
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(lesson.projects_tagged[0] ?? '');
+  const [error, setError] = useState('');
+
+  const { data: projects } = useQuery<Project[]>({ queryKey: ['projects'], queryFn: fetchProjects });
+
+  const mutation = useMutation({
+    mutationFn: (data: Parameters<typeof updateLesson>[1]) => updateLesson(lesson.id, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['lessons'] }); onClose(); },
+    onError: () => setError('Failed to save. Try again.'),
+  });
+
+  function handleSubmit() {
+    if (!form.title.trim()) { setError('Title is required'); return; }
+    const projects_tagged = form.item_type === 'task' && selectedProjectId ? [selectedProjectId] : [];
+    mutation.mutate({ title: form.title.trim(), content: form.content.trim(), importance: form.importance, item_type: form.item_type, starred: form.starred, projects_tagged });
+  }
+
+  const cfg = ITEM_TYPE_CONFIG[form.item_type];
+
+  return (
+    <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ fontFamily: '"Google Sans", "Roboto", sans-serif', fontSize: '1rem', fontWeight: 500, pb: 1 }}>
+        Edit Item
+      </DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} pt={1}>
+          <Box>
+            <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 0.75 }}>Type</Typography>
+            <Stack direction="row" spacing={1}>
+              {(['task', 'learn', 'skill'] as LessonItemType[]).map((t) => {
+                const c = ITEM_TYPE_CONFIG[t];
+                const active = form.item_type === t;
+                return (
+                  <Box key={t} onClick={() => { setForm((f) => ({ ...f, item_type: t })); setError(''); }}
+                    sx={{ px: 1.5, py: 0.6, border: `1px solid ${active ? c.color : 'rgba(0,0,0,0.15)'}`, bgcolor: active ? c.bg : 'transparent', borderRadius: 1, cursor: 'pointer', transition: 'all 0.15s' }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: active ? 600 : 400, color: active ? c.color : 'text.secondary', fontFamily: '"Google Sans", "Roboto", sans-serif' }}>
+                      {c.label}
+                    </Typography>
+                  </Box>
+                );
+              })}
+            </Stack>
+          </Box>
+          <TextField label="Title" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} size="small" fullWidth autoFocus required error={!!error && !form.title.trim()} />
+          <TextField label="Notes (optional)" value={form.content} onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))} size="small" fullWidth multiline minRows={2} placeholder="Details..." />
+          <Box>
+            <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 0.5 }}>Priority</Typography>
+            <Select value={form.importance} onChange={(e) => setForm((f) => ({ ...f, importance: Number(e.target.value) }))} size="small" fullWidth>
+              {[1, 2, 3, 4, 5].map((i) => <MenuItem key={i} value={i}>{IMPORTANCE_LABEL[i]}</MenuItem>)}
+            </Select>
+          </Box>
+          <Box
+            onClick={() => setForm((f) => ({ ...f, starred: !f.starred }))}
+            sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', width: 'fit-content', py: 0.25 }}
+          >
+            {form.starred
+              ? <StarIcon sx={{ fontSize: 20, color: '#f9ab00' }} />
+              : <StarBorderIcon sx={{ fontSize: 20, color: 'text.disabled' }} />}
+            <Typography sx={{ fontSize: '0.8rem', color: form.starred ? '#f9ab00' : 'text.secondary', fontFamily: '"Google Sans", "Roboto", sans-serif' }}>
+              {form.starred ? 'Starred — will appear at top' : 'Star this item'}
+            </Typography>
+          </Box>
+          {form.item_type === 'task' && (
+            <Box>
+              <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 0.5 }}>Project (optional)</Typography>
+              <Select value={selectedProjectId} onChange={(e) => setSelectedProjectId(e.target.value)} size="small" fullWidth displayEmpty>
+                <MenuItem value=""><em style={{ fontStyle: 'normal', color: 'inherit' }}>— No project —</em></MenuItem>
+                {(projects ?? []).map((p) => (
+                  <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                ))}
+              </Select>
+            </Box>
+          )}
+          {error && <Typography sx={{ fontSize: '0.75rem', color: 'error.main' }}>{error}</Typography>}
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} size="small" sx={{ color: 'text.secondary', textTransform: 'none' }}>Cancel</Button>
+        <Button onClick={handleSubmit} variant="contained" size="small" disabled={mutation.isPending}
+          sx={{ textTransform: 'none', bgcolor: cfg.color, '&:hover': { filter: 'brightness(0.88)', bgcolor: cfg.color } }}>
+          {mutation.isPending ? 'Saving…' : 'Save'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function FilterChip({ label, active, color, dot, onClick }: { label: string; active: boolean; color: string; dot?: boolean; onClick: () => void }) {
+  const theme = useTheme();
+  const resolvedColor = color.startsWith('#') ? color : (theme.palette as any)[color.split('.')[0]]?.[color.split('.')[1]] ?? color;
+  return (
+    <Box onClick={onClick} sx={{
+      display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.35,
+      border: `1px solid ${active ? resolvedColor : theme.palette.divider}`,
+      bgcolor: active ? resolvedColor + '18' : 'transparent',
+      borderRadius: 10, cursor: 'pointer', flexShrink: 0,
+      transition: 'all 0.15s',
+      '&:hover': { borderColor: resolvedColor, bgcolor: resolvedColor + '10' },
+    }}>
+      {dot && <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: resolvedColor, flexShrink: 0 }} />}
+      <Typography sx={{ fontSize: '0.7rem', fontWeight: active ? 600 : 400, color: active ? resolvedColor : 'text.secondary', fontFamily: '"Google Sans", "Roboto", sans-serif', whiteSpace: 'nowrap' }}>
+        {label}
+      </Typography>
+    </Box>
+  );
+}
+
+type DateFilter = 'today' | 'recent';
+
 export default function LessonsPage() {
   const theme = useTheme();
   const queryClient = useQueryClient();
+  const { isAdmin } = useAuth();
   const { data: lessons, isLoading, isError } = useQuery({ queryKey: ['lessons'], queryFn: fetchLessons });
+  const { data: projects } = useQuery<Project[]>({ queryKey: ['projects'], queryFn: fetchProjects });
   const [reminders, setReminders] = useState<LearnReminder[]>(() => loadReminders());
+  const [starLevels, setStarLevels] = useState<Record<string, number>>(() => loadStarLevels());
+  const [hiddenItems, setHiddenItems] = useState<Set<string>>(() => loadHiddenItems());
+  const [showHidden, setShowHidden] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [editLesson, setEditLesson] = useState<Lesson | null>(null);
+  const [activeTypes, setActiveTypes] = useState<Set<AllItemType>>(new Set());
+  const [activePriorities, setActivePriorities] = useState<Set<number>>(new Set());
+  const [dateFilter, setDateFilter] = useState<DateFilter | null>(null);
+
+  function toggleType(t: AllItemType) {
+    setActiveTypes((prev) => { const next = new Set(prev); next.has(t) ? next.delete(t) : next.add(t); return next; });
+  }
+  function togglePriority(p: number) {
+    setActivePriorities((prev) => { const next = new Set(prev); next.has(p) ? next.delete(p) : next.add(p); return next; });
+  }
+  function clearFilters() {
+    setActiveTypes(new Set());
+    setActivePriorities(new Set());
+    setDateFilter(null);
+  }
   const [lessonsOrder, setLessonsOrder] = useState<string[]>(() => loadOrder(LESSONS_ORDER_KEY));
   const [remindersOrder, setRemindersOrder] = useState<string[]>(() => loadOrder(REMINDERS_ORDER_KEY));
 
@@ -401,10 +621,36 @@ export default function LessonsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['lessons'] }),
   });
 
+  const starMutation = useMutation({
+    mutationFn: toggleLessonStarred,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['lessons'] }),
+  });
+
+  function handleSetStar(id: string, clickedStar: number) {
+    const current = starLevels[id] ?? 0;
+    const next = current === clickedStar ? 0 : clickedStar;
+    setStarLevel(id, next);
+    setStarLevels((prev) => {
+      const updated = { ...prev };
+      if (next === 0) delete updated[id]; else updated[id] = next;
+      return updated;
+    });
+    const lesson = (lessons ?? []).find((l) => l.id === id);
+    if (lesson) {
+      const wasStarred = lesson.starred;
+      const willBeStarred = next > 0;
+      if (wasStarred !== willBeStarred) starMutation.mutate(id);
+    }
+  }
+
   function handleToggleReminder(id: string) {
     const updated = reminders.map((r) => r.id === id ? { ...r, done: !r.done } : r);
     setReminders(updated);
     saveReminders(updated);
+  }
+
+  function handleHide(id: string) {
+    setHiddenItems(toggleHiddenItem(id));
   }
 
   function handleDeleteReminder(id: string) {
@@ -454,11 +700,30 @@ export default function LessonsPage() {
   }
 
   const lessonList = lessons ?? [];
+  const projectsMap = new Map((projects ?? []).map((p) => [p.id, p.name]));
   const sortedLessons = applyOrder(lessonList, lessonsOrder);
   const sortedReminders = applyOrder(reminders, remindersOrder);
   const totalCount = lessonList.length + reminders.length;
   const doneCount = lessonList.filter((l) => l.done).length + reminders.filter((r) => r.done).length;
   const criticalCount = lessonList.filter((l) => l.importance >= 4).length;
+
+  const hasNoFilters = activeTypes.size === 0 && activePriorities.size === 0 && dateFilter === null;
+  const todayStr = new Date().toISOString().split('T')[0];
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const hiddenCount = sortedLessons.filter((l) => hiddenItems.has(l.id)).length;
+  let displayLessons = sortedLessons;
+  if (!showHidden) displayLessons = displayLessons.filter((l) => !hiddenItems.has(l.id));
+  if (activeTypes.size > 0) displayLessons = displayLessons.filter((l) => activeTypes.has(l.item_type ?? 'task'));
+  if (activePriorities.size > 0) displayLessons = displayLessons.filter((l) => activePriorities.has(l.importance));
+  if (dateFilter === 'today') displayLessons = displayLessons.filter((l) => l.date_learned === todayStr);
+  if (dateFilter === 'recent') displayLessons = displayLessons.filter((l) => new Date(l.date_learned) >= weekAgo);
+  displayLessons = [...displayLessons.filter((l) => l.starred), ...displayLessons.filter((l) => !l.starred)];
+
+  let displayReminders = sortedReminders;
+  if (activeTypes.size > 0 && !activeTypes.has('reminder')) displayReminders = [];
+  if (dateFilter === 'today') displayReminders = displayReminders.filter((r) => r.addedAt.startsWith(todayStr));
+  if (dateFilter === 'recent') displayReminders = displayReminders.filter((r) => new Date(r.addedAt) >= weekAgo);
 
   return (
     <Box>
@@ -472,10 +737,12 @@ export default function LessonsPage() {
             <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mt: 0.25 }}>Tasks, learning items, and skill reminders</Typography>
           </Box>
         </Stack>
-        <Button variant="outlined" size="small" onClick={() => setAddOpen(true)}
-          sx={{ textTransform: 'none', borderColor: 'primary.main', color: 'primary.main', fontFamily: '"Google Sans", "Roboto", sans-serif', fontSize: '0.8rem', '&:hover': { bgcolor: 'rgba(26,115,232,0.06)' } }}>
-          + Add Item
-        </Button>
+        {isAdmin && (
+          <Button variant="outlined" size="small" onClick={() => setAddOpen(true)}
+            sx={{ textTransform: 'none', borderColor: 'primary.main', color: 'primary.main', fontFamily: '"Google Sans", "Roboto", sans-serif', fontSize: '0.8rem', '&:hover': { bgcolor: 'rgba(26,115,232,0.06)' } }}>
+            + Add Item
+          </Button>
+        )}
       </Stack>
 
       <Stack direction="row" spacing={1} mb={1.5}>
@@ -504,19 +771,43 @@ export default function LessonsPage() {
         </Box>
       </Stack>
 
+      {/* Filter bar */}
+      <Box sx={{ mb: 1.5, overflowX: 'auto', pb: 0.25 }}>
+        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 'max-content' }}>
+          <FilterChip label="Show All" active={hasNoFilters} color="#9aa0a6" onClick={clearFilters} />
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+          {(['task', 'learn', 'skill', 'reminder'] as AllItemType[]).map((t) => (
+            <FilterChip key={t} label={ITEM_TYPE_CONFIG[t].label} active={activeTypes.has(t)} color={ITEM_TYPE_CONFIG[t].color} onClick={() => toggleType(t)} />
+          ))}
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+          {[1, 2, 3, 4, 5].map((p) => (
+            <FilterChip key={p} label={IMPORTANCE_LABEL[p]} active={activePriorities.has(p)} color={IMPORTANCE_COLOR[p]} dot onClick={() => togglePriority(p)} />
+          ))}
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+          <FilterChip label="Today" active={dateFilter === 'today'} color="#1a73e8" onClick={() => setDateFilter((d) => d === 'today' ? null : 'today')} />
+          <FilterChip label="Recently Added" active={dateFilter === 'recent'} color="#1a73e8" onClick={() => setDateFilter((d) => d === 'recent' ? null : 'recent')} />
+          {hiddenCount > 0 && (
+            <>
+              <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+              <FilterChip label={`Show Hidden (${hiddenCount})`} active={showHidden} color="#9aa0a6" onClick={() => setShowHidden((v) => !v)} />
+            </>
+          )}
+        </Stack>
+      </Box>
+
       <Stack spacing={0.5}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleLessonDragEnd}>
-          <SortableContext items={sortedLessons.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-            {sortedLessons.map((lesson, i) => (
-              <LessonCard key={lesson.id} lesson={lesson} index={i} onToggleDone={(id) => toggleMutation.mutate(id)} onDelete={(id) => deleteMutation.mutate(id)} />
+          <SortableContext items={displayLessons.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+            {displayLessons.map((lesson, i) => (
+              <LessonCard key={lesson.id} lesson={lesson} index={i} onToggleDone={(id) => toggleMutation.mutate(id)} onDelete={(id) => deleteMutation.mutate(id)} onEdit={setEditLesson} onStar={handleSetStar} onHide={handleHide} starLevel={starLevels[lesson.id] ?? 0} projectsMap={projectsMap} isAdmin={isAdmin} />
             ))}
           </SortableContext>
         </DndContext>
 
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleReminderDragEnd}>
-          <SortableContext items={sortedReminders.map((r) => r.id)} strategy={verticalListSortingStrategy}>
-            {sortedReminders.map((reminder, i) => (
-              <ReminderCard key={reminder.id} reminder={reminder} index={sortedLessons.length + i} onToggle={handleToggleReminder} onDelete={handleDeleteReminder} />
+          <SortableContext items={displayReminders.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+            {displayReminders.map((reminder, i) => (
+              <ReminderCard key={reminder.id} reminder={reminder} index={displayLessons.length + i} onToggle={handleToggleReminder} onDelete={handleDeleteReminder} isAdmin={isAdmin} />
             ))}
           </SortableContext>
         </DndContext>
@@ -528,9 +819,17 @@ export default function LessonsPage() {
             </Typography>
           </Box>
         )}
+        {totalCount > 0 && displayLessons.length === 0 && displayReminders.length === 0 && (
+          <Box sx={{ py: 4, textAlign: 'center', border: `1px dashed ${theme.palette.divider}`, borderRadius: 2 }}>
+            <Typography sx={{ color: 'text.disabled', fontSize: '0.875rem' }}>
+              No items match the current filters
+            </Typography>
+          </Box>
+        )}
       </Stack>
 
       <AddItemDialog open={addOpen} onClose={() => setAddOpen(false)} onReminderAdded={() => setReminders(loadReminders())} />
+      {editLesson && <EditLessonDialog lesson={editLesson} onClose={() => setEditLesson(null)} />}
     </Box>
   );
 }

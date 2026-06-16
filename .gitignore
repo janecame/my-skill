@@ -3,3 +3,5 @@ dist/
 .env
 server-out.log
 migrations/
+**.zip
+.env.local

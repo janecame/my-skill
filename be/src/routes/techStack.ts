@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { supabase } from '../lib/supabase';
+import { requireAdmin } from '../middleware/requireAdmin';
 
 const router = Router();
 
@@ -12,7 +13,7 @@ router.get('/', async (_req, res) => {
   res.json(data);
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireAdmin, async (req, res) => {
   const { name } = req.body;
   if (!name?.trim()) return res.status(400).json({ message: 'Name is required' });
   const { data, error } = await supabase
@@ -24,7 +25,7 @@ router.post('/', async (req, res) => {
   res.status(201).json(data);
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAdmin, async (req, res) => {
   const { name } = req.body;
   if (!name?.trim()) return res.status(400).json({ message: 'Name is required' });
   const { data, error } = await supabase
@@ -37,7 +38,7 @@ router.put('/:id', async (req, res) => {
   res.json(data);
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAdmin, async (req, res) => {
   const { error } = await supabase
     .from('tech_stack_options')
     .delete()

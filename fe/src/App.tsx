@@ -8,6 +8,7 @@ import SkillsPage from './pages/SkillsPage';
 import ProjectsPage from './pages/ProjectsPage';
 import LessonsPage from './pages/LessonsPage';
 import SettingsPage from './pages/SettingsPage';
+import AdminLock from './auth/AdminLock';
 
 const TABS = [
   { label: 'Overview', path: '/' },
@@ -264,15 +265,18 @@ export default function App() {
               </Box>
             </Stack>
 
-            {/* Dark mode toggle */}
-            <IconButton
-              onClick={() => setDarkMode((d) => !d)}
-              size="small"
-              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-              title={darkMode ? 'Light mode' : 'Dark mode'}
-            >
-              {darkMode ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
-            </IconButton>
+            {/* Dark mode toggle + admin lock */}
+            <Stack direction="row" alignItems="center" spacing={0.5}>
+              <IconButton
+                onClick={() => setDarkMode((d) => !d)}
+                size="small"
+                aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                title={darkMode ? 'Light mode' : 'Dark mode'}
+              >
+                {darkMode ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+              </IconButton>
+              <AdminLock />
+            </Stack>
           </Box>
 
           {/* Navigation tabs */}

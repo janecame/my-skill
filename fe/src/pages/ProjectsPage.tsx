@@ -28,6 +28,7 @@ import {
 } from 'recharts';
 import { fetchProjects, createProject, updateProject, fetchTechStackOptions, fetchLessons } from '../api';
 import { Project, Lesson } from '../types';
+import { useAuth } from '../auth/AuthContext';
 
 const TASK_IMPORTANCE_COLOR = ['', '#9aa0a6', '#80868b', '#0288d1', '#f9ab00', '#d93025'];
 const TASK_IMPORTANCE_LABEL = ['', 'Trivial', 'Minor', 'Notable', 'Important', 'Critical'];
@@ -41,7 +42,7 @@ function statusLabel(status: number) {
   return { label: 'Planning', color: '#80868b' };
 }
 
-function ProjectCard({ project, onEdit, linkedTasks }: { project: Project; onEdit: (p: Project) => void; linkedTasks: Lesson[] }) {
+function ProjectCard({ project, onEdit, linkedTasks, isAdmin }: { project: Project; onEdit: (p: Project) => void; linkedTasks: Lesson[]; isAdmin: boolean }) {
   const theme = useTheme();
   const status = statusLabel(project.status);
 
@@ -138,10 +139,12 @@ function ProjectCard({ project, onEdit, linkedTasks }: { project: Project; onEdi
               {new Date(project.start_date).toLocaleDateString()}
               {project.end_date ? ` — ${new Date(project.end_date).toLocaleDateString()}` : ' — ongoing'}
             </Typography>
-            <Button size="small" onClick={() => onEdit(project)}
-              sx={{ minWidth: 0, px: 1, py: 0.25, fontSize: '0.65rem', textTransform: 'none', color: 'text.secondary', '&:hover': { color: 'primary.main', bgcolor: 'rgba(26,115,232,0.06)' } }}>
-              Edit
-            </Button>
+            {isAdmin && (
+              <Button size="small" onClick={() => onEdit(project)}
+                sx={{ minWidth: 0, px: 1, py: 0.25, fontSize: '0.65rem', textTransform: 'none', color: 'text.secondary', '&:hover': { color: 'primary.main', bgcolor: 'rgba(26,115,232,0.06)' } }}>
+                Edit
+              </Button>
+            )}
           </Stack>
         </Stack>
       </Box>
@@ -305,6 +308,7 @@ export default function ProjectsPage() {
   const theme = useTheme();
   const { data: projects, isLoading, isError } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
   const { data: lessons } = useQuery({ queryKey: ['lessons'], queryFn: fetchLessons });
+  const { isAdmin } = useAuth();
   const [addOpen, setAddOpen] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
 
@@ -348,10 +352,12 @@ export default function ProjectsPage() {
             <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mt: 0.25 }}>Project log & status</Typography>
           </Box>
         </Stack>
-        <Button variant="outlined" size="small" onClick={() => setAddOpen(true)}
-          sx={{ textTransform: 'none', borderColor: 'info.main', color: 'info.main', fontFamily: '"Google Sans", "Roboto", sans-serif', fontSize: '0.8rem', '&:hover': { bgcolor: 'rgba(2,136,209,0.06)' } }}>
-          + Add Project
-        </Button>
+        {isAdmin && (
+          <Button variant="outlined" size="small" onClick={() => setAddOpen(true)}
+            sx={{ textTransform: 'none', borderColor: 'info.main', color: 'info.main', fontFamily: '"Google Sans", "Roboto", sans-serif', fontSize: '0.8rem', '&:hover': { bgcolor: 'rgba(2,136,209,0.06)' } }}>
+            + Add Project
+          </Button>
+        )}
       </Stack>
 
       <Stack direction="row" spacing={1.5} mb={3}>
@@ -396,6 +402,7 @@ export default function ProjectsPage() {
             project={project}
             onEdit={setEditProject}
             linkedTasks={(lessons ?? []).filter(l => l.item_type === 'task' && l.projects_tagged.includes(project.id))}
+            isAdmin={isAdmin}
           />
         ))}
         {projects?.length === 0 && (

@@ -6,6 +6,7 @@ import projectsRouter from './routes/projects';
 import lessonsRouter from './routes/lessons';
 import goalsRouter from './routes/goals';
 import techStackRouter from './routes/techStack';
+import authRouter from './routes/auth';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -15,6 +16,7 @@ app.use(cors({
 }));
 app.use(express.json());
 
+app.use('/api/auth', authRouter);
 app.use('/api/skills', skillsRouter);
 app.use('/api/projects', projectsRouter);
 app.use('/api/lessons', lessonsRouter);

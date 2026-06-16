@@ -24,10 +24,12 @@ import {
   deleteTechStackOption,
 } from '../api';
 import { TechStackOption } from '../types';
+import { useAuth } from '../auth/AuthContext';
 
 function TechStackSection() {
   const theme = useTheme();
   const queryClient = useQueryClient();
+  const { isAdmin } = useAuth();
   const { data: options, isLoading } = useQuery({ queryKey: ['tech-stack-options'], queryFn: fetchTechStackOptions });
 
   const cardStyle = {
@@ -83,12 +85,14 @@ function TechStackSection() {
           These options appear in the Tech Stack picker when adding or editing a project.
         </Typography>
 
-        <Stack direction="row" spacing={1} mb={2.5}>
-          <TextField value={addName} onChange={(e) => { setAddName(e.target.value); setAddError(''); }} onKeyDown={(e) => e.key === 'Enter' && handleAdd()} placeholder="e.g. Vue.js" size="small" sx={{ flex: 1 }} error={!!addError} helperText={addError} />
-          <Button variant="contained" size="small" onClick={handleAdd} disabled={addMutation.isPending} sx={{ textTransform: 'none', bgcolor: '#1a73e8', '&:hover': { bgcolor: '#1557b0' }, flexShrink: 0 }}>
-            {addMutation.isPending ? 'Adding…' : '+ Add'}
-          </Button>
-        </Stack>
+        {isAdmin && (
+          <Stack direction="row" spacing={1} mb={2.5}>
+            <TextField value={addName} onChange={(e) => { setAddName(e.target.value); setAddError(''); }} onKeyDown={(e) => e.key === 'Enter' && handleAdd()} placeholder="e.g. Vue.js" size="small" sx={{ flex: 1 }} error={!!addError} helperText={addError} />
+            <Button variant="contained" size="small" onClick={handleAdd} disabled={addMutation.isPending} sx={{ textTransform: 'none', bgcolor: '#1a73e8', '&:hover': { bgcolor: '#1557b0' }, flexShrink: 0 }}>
+              {addMutation.isPending ? 'Adding…' : '+ Add'}
+            </Button>
+          </Stack>
+        )}
 
         {isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
@@ -109,18 +113,20 @@ function TechStackSection() {
                     <Typography sx={{ fontSize: '0.85rem', color: 'text.primary', fontFamily: '"Google Sans", "Roboto", sans-serif' }}>
                       {opt.name}
                     </Typography>
-                    <Stack direction="row" spacing={0.5}>
-                      <IconButton size="small" onClick={() => openEdit(opt)} sx={{ p: 0.5 }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                        </svg>
-                      </IconButton>
-                      <IconButton size="small" onClick={() => setDeleteTarget(opt)} sx={{ p: 0.5, '&:hover': { color: 'error.main' } }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                        </svg>
-                      </IconButton>
-                    </Stack>
+                    {isAdmin && (
+                      <Stack direction="row" spacing={0.5}>
+                        <IconButton size="small" onClick={() => openEdit(opt)} sx={{ p: 0.5 }}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                          </svg>
+                        </IconButton>
+                        <IconButton size="small" onClick={() => setDeleteTarget(opt)} sx={{ p: 0.5, '&:hover': { color: 'error.main' } }}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                          </svg>
+                        </IconButton>
+                      </Stack>
+                    )}
                   </Stack>
                 ))}
                 {all.length === 0 && (

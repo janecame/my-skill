@@ -62,6 +62,7 @@ export interface Lesson {
   date_learned: string;
   importance: number;
   done: boolean;
+  starred: boolean;
   item_type: LessonItemType;
 }
 

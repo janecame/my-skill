@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Box, Button, CircularProgress, Stack, Typography, useTheme } from '@mui/material';
+import { Box, CircularProgress, Stack, Typography, useTheme } from '@mui/material';
 import {
   RadarChart,
   Radar,
@@ -15,7 +15,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { fetchSkills, fetchProjects, fetchLessons, fetchGoals } from '../api';
-import { Lesson, LearnReminder, LessonItemType, MasteryLevel, SubSkillState } from '../types';
+import { Lesson, LearnReminder, LessonItemType, MasteryLevel } from '../types';
 import { loadLearnReminders } from '../utils/reminders';
 
 type AllItemType = LessonItemType | 'reminder';
@@ -64,21 +64,12 @@ function TypeBadge({ type }: { type: AllItemType }) {
   );
 }
 
-const STORAGE_KEY = 'skill-tracker:sub-skill-states';
 const MASTERY_VALUE: Record<MasteryLevel, number> = {
   Beginner: 25,
   Intermediate: 50,
   Advanced: 75,
   Expert: 100,
 };
-
-function loadStates(): Record<string, SubSkillState> {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  } catch {
-    return {};
-  }
-}
 
 
 function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
@@ -156,22 +147,15 @@ export default function OverviewPage() {
     );
   }
 
-  const states = loadStates();
-
-  const allSubSkills = (skills ?? []).flatMap((s) =>
-    s.sub_skills.map((ss) => ({ ...ss, state: states[ss.id] as SubSkillState | undefined }))
-  );
+  const allSubSkills = (skills ?? []).flatMap((s) => s.sub_skills);
   const totalSubSkills = allSubSkills.length;
-  const acquiredSubSkills = allSubSkills.filter((ss) => ss.state?.acquired).length;
-  const expertSubSkills = allSubSkills.filter((ss) => ss.state?.mastery === 'Expert').length;
+  const acquiredSubSkills = allSubSkills.filter((ss) => ss.acquired).length;
+  const expertSubSkills = allSubSkills.filter((ss) => ss.mastery === 'Expert').length;
 
   const avgMastery =
     totalSubSkills > 0
       ? Math.round(
-        allSubSkills.reduce((sum, ss) => {
-          const m = ss.state?.mastery;
-          return sum + (m ? MASTERY_VALUE[m] : 0);
-        }, 0) / totalSubSkills
+        allSubSkills.reduce((sum, ss) => sum + (ss.mastery ? MASTERY_VALUE[ss.mastery] : 0), 0) / totalSubSkills
       )
       : 0;
 
@@ -186,7 +170,7 @@ export default function OverviewPage() {
   const radarData = (goals ?? []).map((goal) => {
     const goalSkills = (skills ?? []).filter((s) => s.goal_ids.includes(goal.id));
     const goalSubSkills = goalSkills.flatMap((s) => s.sub_skills);
-    const acquired = goalSubSkills.filter((ss) => states[ss.id]?.acquired).length;
+    const acquired = goalSubSkills.filter((ss) => ss.acquired).length;
     const pct = goalSubSkills.length > 0 ? Math.round((acquired / goalSubSkills.length) * 100) : 0;
     return { subject: goal.name.length > 14 ? goal.name.slice(0, 14) + '…' : goal.name, value: pct };
   });
@@ -236,15 +220,6 @@ export default function OverviewPage() {
             Progress summary
           </Typography>
         </Box>
-        {/* <Button
-          size="small"
-          variant="outlined"
-          color="error"
-          onClick={() => { localStorage.removeItem('skill-tracker:sub-skill-states'); window.location.reload(); }}
-          sx={{ textTransform: 'none', fontSize: '0.75rem' }}
-        >
-          Clear skill localStorage
-        </Button> */}
       </Stack>
 
       {/* Top stats */}
@@ -328,7 +303,7 @@ export default function OverviewPage() {
             {(goals ?? []).map((goal) => {
               const goalSkills = (skills ?? []).filter((s) => s.goal_ids.includes(goal.id));
               const goalSubs = goalSkills.flatMap((s) => s.sub_skills);
-              const acquired = goalSubs.filter((ss) => states[ss.id]?.acquired).length;
+              const acquired = goalSubs.filter((ss) => ss.acquired).length;
               const pct = goalSubs.length > 0 ? Math.round((acquired / goalSubs.length) * 100) : 0;
               return (
                 <Box key={goal.id}>

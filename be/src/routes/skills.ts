@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { supabase } from '../lib/supabase';
+import { requireAdmin } from '../middleware/requireAdmin';
 
 const router = Router();
 
@@ -49,7 +50,7 @@ router.get('/:id', async (req, res) => {
   res.json(shapeSkill(data));
 });
 
-router.patch('/sub-skills/:id', async (req, res) => {
+router.patch('/sub-skills/:id', requireAdmin, async (req, res) => {
   const { acquired, mastery } = req.body;
   const { error } = await supabase
     .from('sub_skills')

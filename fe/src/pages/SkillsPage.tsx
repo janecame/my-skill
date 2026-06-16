@@ -38,6 +38,7 @@ import {
 import { fetchSkills, fetchGoals, updateSubSkillState } from '../api';
 import { Goal, LearnReminder, MasteryLevel, Skill, SubSkill, SubSkillState } from '../types';
 import { appendReminder } from '../utils/reminders';
+import { useAuth } from '../auth/AuthContext';
 
 const MASTERY_LEVELS: MasteryLevel[] = ['Beginner', 'Intermediate', 'Advanced', 'Expert'];
 
@@ -101,13 +102,14 @@ function RadialProgress({ value, size = 80, label }: { value: number; size?: num
   );
 }
 
-function NestedSubSkillRow({ subSkill, onChange }: { subSkill: SubSkill; onChange: (next: SubSkillState) => void }) {
+function NestedSubSkillRow({ subSkill, onChange, isAdmin }: { subSkill: SubSkill; onChange: (next: SubSkillState) => void; isAdmin: boolean }) {
   return (
     <Stack direction="row" alignItems="center" spacing={1} sx={{ py: 0.4, px: 1 }}>
       <Checkbox
         checked={subSkill.acquired}
         onChange={(e) => onChange({ acquired: e.target.checked, mastery: subSkill.mastery })}
         size="small"
+        disabled={!isAdmin}
         sx={{ p: 0 }}
       />
       <Box>
@@ -122,10 +124,11 @@ function NestedSubSkillRow({ subSkill, onChange }: { subSkill: SubSkill; onChang
   );
 }
 
-function SubSkillRow({ subSkill, onStateChange, onPlanToLearn }: {
+function SubSkillRow({ subSkill, onStateChange, onPlanToLearn, isAdmin }: {
   subSkill: SubSkill;
   onStateChange: (id: string, next: SubSkillState) => void;
   onPlanToLearn: () => void;
+  isAdmin: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
@@ -148,6 +151,7 @@ function SubSkillRow({ subSkill, onStateChange, onPlanToLearn }: {
           checked={subSkill.acquired}
           onChange={(e) => onStateChange(subSkill.id, { acquired: e.target.checked, mastery: subSkill.mastery })}
           size="small"
+          disabled={!isAdmin}
           sx={{ p: 0 }}
         />
         {nested.length > 0 && (
@@ -167,7 +171,7 @@ function SubSkillRow({ subSkill, onStateChange, onPlanToLearn }: {
           <Select
             value={subSkill.mastery ?? ''}
             displayEmpty
-            disabled={!subSkill.acquired}
+            disabled={!isAdmin || !subSkill.acquired}
             onChange={(e) => onStateChange(subSkill.id, { acquired: subSkill.acquired, mastery: (e.target.value as MasteryLevel) || null })}
             renderValue={(val: string) =>
               val ? (
@@ -188,14 +192,16 @@ function SubSkillRow({ subSkill, onStateChange, onPlanToLearn }: {
             ))}
           </Select>
         </FormControl>
-        <IconButton
-          size="small"
-          onClick={(e) => { e.stopPropagation(); onPlanToLearn(); }}
-          sx={{ p: 0.25, color: 'text.disabled', flexShrink: 0, '&:hover': { color: 'primary.main', bgcolor: 'rgba(26,115,232,0.08)' } }}
-          title="Plan to learn"
-        >
-          <BookmarkAddIcon sx={{ fontSize: 15 }} />
-        </IconButton>
+        {isAdmin && (
+          <IconButton
+            size="small"
+            onClick={(e) => { e.stopPropagation(); onPlanToLearn(); }}
+            sx={{ p: 0.25, color: 'text.disabled', flexShrink: 0, '&:hover': { color: 'primary.main', bgcolor: 'rgba(26,115,232,0.08)' } }}
+            title="Plan to learn"
+          >
+            <BookmarkAddIcon sx={{ fontSize: 15 }} />
+          </IconButton>
+        )}
         {nested.length > 0 && (
           <IconButton size="small" onClick={() => setExpanded((v) => !v)} sx={{ p: 0.25 }}>
             {expanded ? <ExpandLessIcon sx={{ fontSize: 16 }} /> : <ExpandMoreIcon sx={{ fontSize: 16 }} />}
@@ -206,7 +212,7 @@ function SubSkillRow({ subSkill, onStateChange, onPlanToLearn }: {
         <Collapse in={expanded}>
           <Box sx={{ px: 2, pb: 0.75, pt: 0.25, borderTop: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }}>
             {nested.map((child) => (
-              <NestedSubSkillRow key={child.id} subSkill={child} onChange={(next) => onStateChange(child.id, next)} />
+              <NestedSubSkillRow key={child.id} subSkill={child} onChange={(next) => onStateChange(child.id, next)} isAdmin={isAdmin} />
             ))}
           </Box>
         </Collapse>
@@ -252,10 +258,11 @@ function SkillRadarChart({ skill }: { skill: Skill }) {
   );
 }
 
-function SkillCard({ skill, onStateChange, onPlanToLearn }: {
+function SkillCard({ skill, onStateChange, onPlanToLearn, isAdmin }: {
   skill: Skill;
   onStateChange: (subSkillId: string, next: SubSkillState) => void;
   onPlanToLearn: (subSkillName: string) => void;
+  isAdmin: boolean;
 }) {
   const [expanded, setExpanded] = useState(true);
   const theme = useTheme();
@@ -304,7 +311,7 @@ function SkillCard({ skill, onStateChange, onPlanToLearn }: {
           <Stack spacing={0.5} sx={{ px: 2, py: 1.5 }}>
             {skill.sub_skills.map((sub) => (
               <SubSkillRow key={sub.id} subSkill={sub} onStateChange={onStateChange}
-                onPlanToLearn={() => onPlanToLearn(sub.name)} />
+                onPlanToLearn={() => onPlanToLearn(sub.name)} isAdmin={isAdmin} />
             ))}
           </Stack>
         </Box>
@@ -348,11 +355,12 @@ function GoalRadarChart({ skills }: { skills: Skill[] }) {
   );
 }
 
-function GoalView({ goal, skills, onStateChange, onPlanToLearn }: {
+function GoalView({ goal, skills, onStateChange, onPlanToLearn, isAdmin }: {
   goal: Goal;
   skills: Skill[];
   onStateChange: (subSkillId: string, next: SubSkillState) => void;
   onPlanToLearn: (subSkillName: string, skillName: string, goalName: string) => void;
+  isAdmin: boolean;
 }) {
   const theme = useTheme();
   const cardStyle = useCardStyle();
@@ -407,7 +415,7 @@ function GoalView({ goal, skills, onStateChange, onPlanToLearn }: {
       <Stack spacing={1.5}>
         {goalSkills.map((skill) => (
           <SkillCard key={skill.id} skill={skill} onStateChange={onStateChange}
-            onPlanToLearn={(subSkillName) => onPlanToLearn(subSkillName, skill.name, goal.name)} />
+            onPlanToLearn={(subSkillName) => onPlanToLearn(subSkillName, skill.name, goal.name)} isAdmin={isAdmin} />
         ))}
         {goalSkills.length === 0 && (
           <Box sx={{ py: 6, textAlign: 'center', border: `1px dashed ${theme.palette.divider}`, borderRadius: 2 }}>
@@ -499,6 +507,7 @@ export default function SkillsPage() {
   const [planDialog, setPlanDialog] = useState<PlanDialogState>({ open: false, subSkillName: '', skillName: '', goalName: '' });
   const theme = useTheme();
   const queryClient = useQueryClient();
+  const { isAdmin } = useAuth();
 
   const { data: goals, isLoading: goalsLoading } = useQuery({ queryKey: ['goals'], queryFn: fetchGoals });
   const { data: skills, isLoading: skillsLoading, isError } = useQuery({ queryKey: ['skills'], queryFn: fetchSkills });
@@ -586,6 +595,7 @@ export default function SkillsPage() {
           onPlanToLearn={(subSkillName, skillName, goalName) =>
             setPlanDialog({ open: true, subSkillName, skillName, goalName })
           }
+          isAdmin={isAdmin}
         />
       )}
 
