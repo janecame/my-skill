@@ -15,7 +15,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const apiBase = import.meta.env.VITE_API_URL_LOCAL || '/api';
+const apiBase = import.meta.env.VITE_API_URL || '/api';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => getStoredToken());
