@@ -69,4 +69,4 @@ export const updateTechStackOption = (id: string, name: string) =>
 export const deleteTechStackOption = (id: string) => del(`/tech-stack-options/${id}`);
 
 export const updateSubSkillState = (id: string, acquired: boolean, mastery: string | null) =>
-  api.patch(`/skills/sub-skills/${id}`, { acquired, mastery }).then((r) => r.data);
+  api.patch(`/skills/sub-skills/${id}`, { acquired, mastery }).then((r) => r.data);"" 
